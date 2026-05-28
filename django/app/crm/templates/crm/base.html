@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}贸易ERP系统{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', Arial, sans-serif; background: #f5f6fa; }
+        
+        /* 导航栏 */
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            height: 56px;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+        }
+        .navbar .logo { font-size: 18px; font-weight: bold; margin-right: 40px; }
+        .navbar a { color: #bdc3c7; text-decoration: none; padding: 8px 16px; border-radius: 4px; }
+        .navbar a:hover { background: #34495e; color: white; }
+        .navbar .user-info { margin-left: auto; color: #bdc3c7; font-size: 14px; }
+        .navbar .logout-btn { 
+            color: #e74c3c !important; 
+            margin-left: 10px;
+            border: 1px solid #e74c3c;
+        }
+        
+        /* 主内容区 */
+        .main { margin-top: 56px; padding: 24px; }
+        
+        /* 卡片 */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .card-title { font-size: 16px; font-weight: bold; margin-bottom: 16px; color: #2c3e50; }
+        
+        /* 按钮 */
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        
+        /* 表格 */
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f9fa; padding: 10px 12px; text-align: left; 
+             font-size: 13px; color: #666; border-bottom: 2px solid #dee2e6; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        tr:hover td { background: #f8f9fa; }
+        
+        /* 表单 */
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-control:focus { border-color: #3498db; outline: none; }
+        
+        /* 状态标签 */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .badge-active { background: #d4edda; color: #155724; }
+        .badge-potential { background: #fff3cd; color: #856404; }
+        .badge-inactive { background: #f8d7da; color: #721c24; }
+        .badge-lost { background: #e2e3e5; color: #383d41; }
+        
+        /* 统计数字 */
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .stat-number { font-size: 36px; font-weight: bold; color: #3498db; }
+        .stat-label { color: #666; font-size: 14px; margin-top: 4px; }
+        
+        /* 消息提示 */
+        .messages { margin-bottom: 16px; }
+        .message { padding: 10px 16px; border-radius: 4px; margin-bottom: 8px; }
+        .message-success { background: #d4edda; color: #155724; }
+        .message-error { background: #f8d7da; color: #721c24; }
+        
+        /* 搜索栏 */
+        .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+        .search-bar input { flex: 1; }
+        
+        /* 网格布局 */
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        @media (max-width: 768px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    </style>
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<nav class="navbar">
+    <div class="logo">🏭 贸易ERP</div>
+    <a href="{% url 'dashboard' %}">首页</a>
+    <a href="{% url 'customer_list' %}">客户管理</a>
+    <a href="/admin/">系统后台</a>
+    <div class="user-info">
+        👤 {{ user.username }}
+        <a href="{% url 'logout' %}" class="btn logout-btn">退出</a>
+    </div>
+</nav>
+{% endif %}
+
+<div class="main">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message message-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% block content %}{% endblock %}
+</div>
+
+</body>
+</html>
