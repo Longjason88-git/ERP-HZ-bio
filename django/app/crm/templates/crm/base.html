@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}贸易ERP系统{% endblock %}</title>
     <style>
+        /* ===== 基础重置 ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Microsoft YaHei', Arial, sans-serif; background: #f5f6fa; }
-        
-        /* 导航栏 */
+
+        /* ===== 导航栏 ===== */
         .navbar {
             background: #2c3e50;
             color: white;
@@ -19,21 +20,62 @@
             position: fixed;
             top: 0; left: 0; right: 0;
             z-index: 100;
+            flex-wrap: wrap;
         }
-        .navbar .logo { font-size: 18px; font-weight: bold; margin-right: 40px; }
-        .navbar a { color: #bdc3c7; text-decoration: none; padding: 8px 16px; border-radius: 4px; }
+        .navbar .logo {
+            font-size: 18px;
+            font-weight: bold;
+            margin-right: 30px;
+            white-space: nowrap;
+        }
+        .nav-links { display: flex; align-items: center; flex: 1; }
+        .navbar a {
+            color: #bdc3c7;
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
         .navbar a:hover { background: #34495e; color: white; }
-        .navbar .user-info { margin-left: auto; color: #bdc3c7; font-size: 14px; }
-        .navbar .logout-btn { 
-            color: #e74c3c !important; 
-            margin-left: 10px;
-            border: 1px solid #e74c3c;
+        .navbar a.active { background: #3498db; color: white; }
+        .navbar .user-info {
+            margin-left: auto;
+            color: #bdc3c7;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
         }
-        
-        /* 主内容区 */
-        .main { margin-top: 56px; padding: 24px; }
-        
-        /* 卡片 */
+        .navbar .logout-btn {
+            color: #e74c3c !important;
+            border: 1px solid #e74c3c;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+        .navbar .logout-btn:hover {
+            background: #e74c3c;
+            color: white !important;
+        }
+
+        /* ===== 主内容区 ===== */
+        .main { margin-top: 56px; padding: 20px; }
+
+        /* ===== 消息提示 ===== */
+        .messages { margin-bottom: 16px; }
+        .message {
+            padding: 10px 16px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .message-success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .message-error   { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .message-warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        .message-info    { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+
+        /* ===== 卡片 ===== */
         .card {
             background: white;
             border-radius: 8px;
@@ -41,56 +83,191 @@
             margin-bottom: 20px;
             box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
-        .card-title { font-size: 16px; font-weight: bold; margin-bottom: 16px; color: #2c3e50; }
-        
-        /* 按钮 */
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            color: #2c3e50;
+        }
+        /* 卡片头部 */
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            padding: 10px 16px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header.primary { background: #3498db; color: white; }
+        .card-header.success { background: #27ae60; color: white; }
+        .card-header.warning { background: #f39c12; color: white; }
+        .card-body { padding: 16px; }
+        .card-footer {
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 10px 16px;
+            border-radius: 0 0 8px 8px;
+        }
+        /* 无padding卡片（表格用） */
+        .card-no-pad { background: white; border-radius: 8px;
+                       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+                       margin-bottom: 20px; overflow: hidden; }
+
+        /* ===== 按钮 ===== */
         .btn {
             display: inline-block;
-            padding: 8px 16px;
+            padding: 7px 14px;
             border-radius: 4px;
             border: none;
             cursor: pointer;
             text-decoration: none;
             font-size: 14px;
+            line-height: 1.4;
+            text-align: center;
+            transition: opacity 0.2s;
         }
-        .btn-primary { background: #3498db; color: white; }
-        .btn-primary:hover { background: #2980b9; }
-        .btn-success { background: #27ae60; color: white; }
-        .btn-danger { background: #e74c3c; color: white; }
+        .btn:hover { opacity: 0.85; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-lg { padding: 10px 20px; font-size: 16px; }
+        .btn-block { display: block; width: 100%; }
+        .btn-primary   { background: #3498db; color: white; }
+        .btn-success   { background: #27ae60; color: white; }
+        .btn-danger    { background: #e74c3c; color: white; }
+        .btn-warning   { background: #f39c12; color: white; }
         .btn-secondary { background: #95a5a6; color: white; }
-        
-        /* 表格 */
+        .btn-outline-primary {
+            background: white; color: #3498db;
+            border: 1px solid #3498db;
+        }
+        .btn-outline-secondary {
+            background: white; color: #666;
+            border: 1px solid #ccc;
+        }
+        .btn-outline-danger {
+            background: white; color: #e74c3c;
+            border: 1px solid #e74c3c;
+        }
+        .btn-outline-success {
+            background: white; color: #27ae60;
+            border: 1px solid #27ae60;
+        }
+
+        /* ===== 表格 ===== */
         table { width: 100%; border-collapse: collapse; }
-        th { background: #f8f9fa; padding: 10px 12px; text-align: left; 
-             font-size: 13px; color: #666; border-bottom: 2px solid #dee2e6; }
+        th {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 13px;
+            color: #555;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+        th.text-end { text-align: right; }
+        th.text-center { text-align: center; }
         td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-        tr:hover td { background: #f8f9fa; }
-        
-        /* 表单 */
+        td.text-end { text-align: right; }
+        td.text-center { text-align: center; }
+        td.text-muted { color: #888; }
+        tr:hover td { background: #fafafa; }
+        .table-dark th { background: #2c3e50; color: white; }
+        .table-responsive { overflow-x: auto; }
+
+        /* ===== 表单 ===== */
         .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
+        }
         .form-control {
             width: 100%;
-            padding: 8px 12px;
+            padding: 7px 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+            font-family: inherit;
         }
-        .form-control:focus { border-color: #3498db; outline: none; }
-        
-        /* 状态标签 */
+        .form-control:focus { border-color: #3498db; outline: none; box-shadow: 0 0 0 2px rgba(52,152,219,0.2); }
+        .form-control-sm { padding: 4px 8px; font-size: 13px; }
+        select.form-control { cursor: pointer; }
+
+        /* 行内表单 */
+        .form-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-bottom: 16px;
+        }
+        .form-col { flex: 1; min-width: 150px; }
+        .form-col-auto { flex: 0 0 auto; }
+
+        /* ===== 布局工具 ===== */
+        .row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .col-8 { flex: 0 0 calc(66.66% - 10px); min-width: 300px; }
+        .col-4 { flex: 0 0 calc(33.33% - 10px); min-width: 250px; }
+        .col-6 { flex: 0 0 calc(50% - 10px); min-width: 200px; }
+        .col-3 { flex: 0 0 calc(25% - 15px); min-width: 150px; }
+        @media (max-width: 900px) {
+            .col-8, .col-4, .col-6, .col-3 { flex: 0 0 100%; }
+        }
+        .d-flex { display: flex; }
+        .align-items-center { align-items: center; }
+        .justify-content-between { justify-content: space-between; }
+        .gap-8 { gap: 8px; }
+        .mb-8  { margin-bottom: 8px; }
+        .mb-16 { margin-bottom: 16px; }
+        .mb-20 { margin-bottom: 20px; }
+        .mt-8  { margin-top: 8px; }
+        .mt-16 { margin-top: 16px; }
+        .text-right  { text-align: right; }
+        .text-center { text-align: center; }
+        .text-muted  { color: #888; }
+        .text-small  { font-size: 12px; }
+        .fw-bold     { font-weight: bold; }
+        .w-100       { width: 100%; }
+
+        /* ===== 徽章/状态标签 ===== */
         .badge {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
             font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
         }
-        .badge-active { background: #d4edda; color: #155724; }
+        /* 客户状态 */
+        .badge-active    { background: #d4edda; color: #155724; }
         .badge-potential { background: #fff3cd; color: #856404; }
-        .badge-inactive { background: #f8d7da; color: #721c24; }
-        .badge-lost { background: #e2e3e5; color: #383d41; }
-        
-        /* 统计数字 */
+        .badge-inactive  { background: #f8d7da; color: #721c24; }
+        .badge-lost      { background: #e2e3e5; color: #383d41; }
+        /* 订单状态 */
+        .badge-draft      { background: #e2e3e5; color: #383d41; }
+        .badge-confirmed  { background: #cce5ff; color: #004085; }
+        .badge-purchasing { background: #fff3cd; color: #856404; }
+        .badge-shipped    { background: #e8d5f5; color: #5a0080; }
+        .badge-completed  { background: #d4edda; color: #155724; }
+        .badge-cancelled  { background: #f8d7da; color: #721c24; }
+        /* 通用颜色 */
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger  { background: #f8d7da; color: #721c24; }
+        .badge-info    { background: #d1ecf1; color: #0c5460; }
+        .badge-gray    { background: #e2e3e5; color: #383d41; }
+
+        /* ===== 文字颜色 ===== */
+        .text-success { color: #27ae60; }
+        .text-danger  { color: #e74c3c; }
+        .text-warning { color: #f39c12; }
+        .text-primary { color: #3498db; }
+        .text-info    { color: #17a2b8; }
+
+        /* ===== 统计卡片 ===== */
         .stat-card {
             background: white;
             border-radius: 8px;
@@ -98,35 +275,97 @@
             text-align: center;
             box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
-        .stat-number { font-size: 36px; font-weight: bold; color: #3498db; }
-        .stat-label { color: #666; font-size: 14px; margin-top: 4px; }
-        
-        /* 消息提示 */
-        .messages { margin-bottom: 16px; }
-        .message { padding: 10px 16px; border-radius: 4px; margin-bottom: 8px; }
-        .message-success { background: #d4edda; color: #155724; }
-        .message-error { background: #f8d7da; color: #721c24; }
-        
-        /* 搜索栏 */
-        .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
-        .search-bar input { flex: 1; }
-        
-        /* 网格布局 */
-        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-        @media (max-width: 768px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+        .stat-number { font-size: 32px; font-weight: bold; color: #3498db; }
+        .stat-label { color: #666; font-size: 13px; margin-top: 4px; }
+
+        /* ===== 搜索栏 ===== */
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .search-bar input, .search-bar select { flex: 1; min-width: 120px; }
+
+        /* ===== 网格 ===== */
+        .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+        @media (max-width: 768px) {
+            .grid-4 { grid-template-columns: repeat(2,1fr); }
+            .grid-3 { grid-template-columns: repeat(2,1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+
+        /* ===== 下拉搜索结果 ===== */
+        .search-dropdown {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 999;
+            max-height: 280px;
+            overflow-y: auto;
+            min-width: 400px;
+        }
+        .search-dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        .search-dropdown-item:hover { background: #f0f7ff; }
+        .search-dropdown-item:last-child { border-bottom: none; }
+
+        /* ===== 分割线 ===== */
+        hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+
+        /* ===== 警告框 ===== */
+        .alert {
+            padding: 10px 16px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .alert-info    { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        .alert-success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .alert-danger  { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+
+        /* ===== 详情信息表格 ===== */
+        .info-table td { padding: 7px 12px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+        .info-table td:first-child { color: #888; width: 35%; }
+        .info-table td:last-child { font-weight: 500; }
     </style>
 </head>
 <body>
 
 {% if user.is_authenticated %}
 <nav class="navbar">
-    <div class="logo">🏭 贸易ERP</div>
-    <a href="{% url 'dashboard' %}">首页</a>
-    <a href="{% url 'customer_list' %}">客户管理</a>
-    <a href="/admin/">系统后台</a>
+    <div class="logo">🏭 汇洲生化ERP</div>
+    <div class="nav-links">
+        <a href="{% url 'dashboard' %}"
+           {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>
+            🏠 首页
+        </a>
+        <a href="{% url 'customer_list' %}"
+           {% if 'customer' in request.resolver_match.url_name %}class="active"{% endif %}>
+            👥 客户管理
+        </a>
+        <a href="{% url 'order_list' %}"
+           {% if 'order' in request.resolver_match.url_name %}class="active"{% endif %}>
+            📦 订单管理
+        </a>
+        <a href="{% url 'product_list' %}"
+           {% if 'product' in request.resolver_match.url_name %}class="active"{% endif %}>
+            🧪 产品管理
+        </a>
+        <a href="/admin/">⚙️ 系统后台</a>
+    </div>
     <div class="user-info">
         👤 {{ user.username }}
-        <a href="{% url 'logout' %}" class="btn logout-btn">退出</a>
+        <a href="{% url 'logout' %}" class="logout-btn">退出</a>
     </div>
 </nav>
 {% endif %}
@@ -139,7 +378,7 @@
         {% endfor %}
     </div>
     {% endif %}
-    
+
     {% block content %}{% endblock %}
 </div>
 

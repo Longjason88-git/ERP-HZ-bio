@@ -1,0 +1,434 @@
+{% extends 'crm/base.html' %}
+{% block title %}{{ order.order_no }}{% endblock %}
+
+{% block content %}
+
+<!-- 标题 -->
+<div class="d-flex justify-content-between align-items-center mb-20">
+    <div>
+        <h4 style="margin-bottom:4px;">
+            📦 {{ order.order_no }}
+            {% if order.status == 'draft' %}
+                <span class="badge badge-draft">草稿</span>
+            {% elif order.status == 'confirmed' %}
+                <span class="badge badge-confirmed">已确认</span>
+            {% elif order.status == 'purchasing' %}
+                <span class="badge badge-purchasing">采购中</span>
+            {% elif order.status == 'shipped' %}
+                <span class="badge badge-shipped">已发货</span>
+            {% elif order.status == 'completed' %}
+                <span class="badge badge-completed">已完成</span>
+            {% elif order.status == 'cancelled' %}
+                <span class="badge badge-cancelled">已取消</span>
+            {% endif %}
+        </h4>
+        <span class="text-muted text-small">
+            创建：{{ order.created_at|date:"Y-m-d H:i" }}
+            &nbsp;|&nbsp;
+            业务员：{{ order.sales_rep.get_full_name|default:order.sales_rep.username }}
+        </span>
+    </div>
+    <a href="{% url 'order_list' %}" class="btn btn-outline-secondary btn-sm">
+        ← 返回列表
+    </a>
+</div>
+
+<div class="row">
+    <!-- 左栏 -->
+    <div class="col-8">
+
+        <!-- 客户信息 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header">👤 客户信息</div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                    <div>
+                        <div class="text-muted text-small">客户姓名</div>
+                        <a href="{% url 'customer_detail' order.customer.pk %}"
+                           style="font-weight:bold;">
+                            {{ order.customer.name }}
+                        </a>
+                    </div>
+                    <div>
+                        <div class="text-muted text-small">所在单位</div>
+                        <strong>{{ order.customer.institution|default:'-' }}</strong>
+                    </div>
+                    <div>
+                        <div class="text-muted text-small">课题组</div>
+                        <strong>{{ order.customer.lab_group|default:'-' }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 产品明细 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header success">🧪 产品明细</div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>品牌</th>
+                            <th>货号</th>
+                            <th>产品名称</th>
+                            <th>规格</th>
+                            <th class="text-center">数量</th>
+                            <th class="text-end">单价</th>
+                            <th class="text-end">小计</th>
+                            <th class="text-end">毛利</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td class="text-muted">{{ forloop.counter }}</td>
+                            <td>
+                                <span class="badge badge-info">
+                                    {{ item.brand_name|default:'-' }}
+                                </span>
+                            </td>
+                            <td class="fw-bold text-small">{{ item.catalog_number }}</td>
+                            <td>
+                                {{ item.product_name }}
+                                {% if item.remark %}
+                                <br><span class="text-muted text-small">
+                                    {{ item.remark }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted text-small">{{ item.spec }}</td>
+                            <td class="text-center">{{ item.quantity }} {{ item.unit }}</td>
+                            <td class="text-end">¥{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">
+                                ¥{{ item.subtotal|floatformat:2 }}
+                            </td>
+                            <td class="text-end text-small">
+                                {% if item.profit %}
+                                    <span class="{% if item.profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        ¥{{ item.profit|floatformat:2 }}
+                                        {% if item.profit_rate %}
+                                        <br>({{ item.profit_rate }}%)
+                                        {% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9"
+                                style="text-align:center;padding:20px;color:#888;">
+                                暂无产品明细
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background:#f8f9fa;font-weight:bold;">
+                            <td colspan="7" class="text-end">产品合计：</td>
+                            <td class="text-end text-success">
+                                ¥{{ order.items_total|floatformat:2 }}
+                            </td>
+                            <td class="text-end text-small text-success">
+                                {% if order.total_profit %}
+                                    ¥{{ order.total_profit|floatformat:2 }}
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% if order.shipping_fee %}
+                        <tr>
+                            <td colspan="7" class="text-end text-muted">运费：</td>
+                            <td class="text-end">
+                                ¥{{ order.shipping_fee|floatformat:2 }}
+                            </td>
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                        {% if order.discount_amount %}
+                        <tr>
+                            <td colspan="7" class="text-end text-muted">优惠：</td>
+                            <td class="text-end text-danger">
+                                -¥{{ order.discount_amount|floatformat:2 }}
+                            </td>
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                        <tr style="background:#fff8e1;">
+                            <td colspan="7" class="text-end fw-bold">订单总额：</td>
+                            <td class="text-end text-danger fw-bold"
+                                style="font-size:16px;">
+                                ¥{{ order.final_amount|floatformat:2 }}
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- 回款记录 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header">
+                <span>💰 回款记录</span>
+                <span>
+                    已收
+                    <strong class="text-success">
+                        ¥{{ order.paid_amount|floatformat:2 }}
+                    </strong>
+                    &nbsp;待收
+                    <strong class="text-danger">
+                        ¥{{ order.unpaid_amount|floatformat:2 }}
+                    </strong>
+                </span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>回款日期</th>
+                        <th>金额</th>
+                        <th>付款方式</th>
+                        <th>备注</th>
+                        <th>记录人</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.payment_date }}</td>
+                        <td class="fw-bold text-success">
+                            ¥{{ payment.amount|floatformat:2 }}
+                        </td>
+                        <td>{{ payment.get_method_display }}</td>
+                        <td class="text-muted text-small">
+                            {{ payment.remark|default:'-' }}
+                        </td>
+                        <td class="text-small">
+                            {{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5"
+                            style="text-align:center;padding:16px;color:#888;">
+                            暂无回款记录
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if order.status != 'cancelled' and order.unpaid_amount > 0 %}
+            <div class="card-footer">
+                <form method="post" action="{% url 'payment_add' order.pk %}">
+                    {% csrf_token %}
+                    <div class="form-row" style="margin-bottom:0;">
+                        <div class="form-col">
+                            <label class="text-small">回款金额(元)</label>
+                            <input type="number" name="amount"
+                                   class="form-control form-control-sm"
+                                   value="{{ order.unpaid_amount|floatformat:2 }}"
+                                   step="0.01" min="0.01" required>
+                        </div>
+                        <div class="form-col">
+                            <label class="text-small">付款方式</label>
+                            <select name="method" class="form-control form-control-sm">
+                                <option value="transfer">银行转账</option>
+                                <option value="alipay">支付宝</option>
+                                <option value="wechat">微信</option>
+                                <option value="cash">现金</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label class="text-small">回款日期</label>
+                            <input type="date" name="payment_date"
+                                   class="form-control form-control-sm"
+                                   value="{% now 'Y-m-d' %}">
+                        </div>
+                        <div class="form-col">
+                            <label class="text-small">备注</label>
+                            <input type="text" name="remark"
+                                   class="form-control form-control-sm"
+                                   placeholder="选填">
+                        </div>
+                        <div class="form-col-auto"
+                             style="display:flex;align-items:flex-end;">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                ✅ 记录回款
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- 右栏 -->
+    <div class="col-4">
+
+        <!-- 更新状态 -->
+        {% if order.status != 'cancelled' and order.status != 'completed' %}
+        <div class="card-no-pad mb-20">
+            <div class="card-header primary">🔄 更新订单状态</div>
+            <div class="card-body">
+                <form method="post" action="{% url 'order_update_status' order.pk %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <select name="status" class="form-control form-control-sm">
+                            <option value="draft"
+                                {% if order.status == 'draft' %}selected{% endif %}>
+                                草稿
+                            </option>
+                            <option value="confirmed"
+                                {% if order.status == 'confirmed' %}selected{% endif %}>
+                                已确认
+                            </option>
+                            <option value="purchasing"
+                                {% if order.status == 'purchasing' %}selected{% endif %}>
+                                采购中
+                            </option>
+                            <option value="shipped"
+                                {% if order.status == 'shipped' %}selected{% endif %}>
+                                已发货
+                            </option>
+                            <option value="completed">已完成</option>
+                            <option value="cancelled">已取消</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" name="tracking_number"
+                               class="form-control form-control-sm"
+                               placeholder="快递单号（发货时填写）"
+                               value="{{ order.tracking_number }}">
+                    </div>
+                    <button type="submit"
+                            class="btn btn-primary btn-sm w-100">
+                        确认更新
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 收货信息 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header">🚚 收货 / 物流</div>
+            <table class="info-table">
+                <tr><td>收货人</td>
+                    <td>{{ order.shipping_contact|default:'-' }}</td></tr>
+                <tr><td>收货电话</td>
+                    <td>{{ order.shipping_phone|default:'-' }}</td></tr>
+                <tr><td>收货地址</td>
+                    <td>{{ order.shipping_address|default:'-' }}</td></tr>
+                <tr><td>发货方式</td>
+                    <td>{{ order.get_shipping_method_display|default:'-' }}</td></tr>
+                <tr><td>快递单号</td>
+                    <td>
+                        {% if order.tracking_number %}
+                        <span class="fw-bold text-primary">
+                            {{ order.tracking_number }}
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                </tr>
+                <tr><td>发货日期</td>
+                    <td>{{ order.shipped_date|default:'-' }}</td></tr>
+            </table>
+        </div>
+
+        <!-- 发票信息 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header">
+                <span>🧾 发票信息</span>
+                <span>
+                    {% if order.invoice_type == 'none' %}
+                        <span class="badge badge-gray">不开票</span>
+                    {% elif order.invoice_status == 'issued' %}
+                        <span class="badge badge-success">✅ 已开票</span>
+                    {% else %}
+                        <span class="badge badge-warning">⏳ 待开票</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% if order.invoice_type != 'none' %}
+            <table class="info-table">
+                <tr><td>发票类型</td>
+                    <td>{{ order.get_invoice_type_display }}</td></tr>
+                <tr><td>发票抬头</td>
+                    <td><strong>{{ order.invoice_title|default:'-' }}</strong></td></tr>
+                <tr><td>税号</td>
+                    <td>{{ order.invoice_tax_id|default:'-' }}</td></tr>
+                <tr><td>发票邮箱</td>
+                    <td>{{ order.invoice_email|default:'-' }}</td></tr>
+                {% if order.invoice_remark %}
+                <tr><td>开票备注</td>
+                    <td class="text-warning">{{ order.invoice_remark }}</td></tr>
+                {% endif %}
+            </table>
+            {% if order.invoice_status == 'pending' %}
+            <div style="padding:10px;">
+                <form method="post" action="{% url 'order_update_status' order.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="{{ order.status }}">
+                    <input type="hidden" name="invoice_status" value="issued">
+                    <button type="submit"
+                            class="btn btn-outline-success btn-sm w-100">
+                        ✅ 标记为已开票
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+            {% else %}
+            <div style="padding:12px;color:#888;font-size:13px;">
+                此订单无需开票
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 付款信息 -->
+        <div class="card-no-pad mb-20">
+            <div class="card-header">💳 付款信息</div>
+            <table class="info-table">
+                <tr><td>付款方式</td>
+                    <td>{{ order.get_payment_term_display }}</td></tr>
+                <tr><td>付款状态</td>
+                    <td>
+                        {% if order.payment_status == 'paid' %}
+                            <span class="text-success fw-bold">✅ 已付款</span>
+                        {% elif order.payment_status == 'partial' %}
+                            <span class="text-warning fw-bold">⚡ 部分付款</span>
+                        {% else %}
+                            <span class="text-danger fw-bold">❌ 未付款</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr><td>订单总额</td>
+                    <td class="fw-bold">¥{{ order.final_amount|floatformat:2 }}</td></tr>
+                <tr><td>已付金额</td>
+                    <td class="text-success fw-bold">
+                        ¥{{ order.paid_amount|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr {% if order.unpaid_amount > 0 %}style="background:#fff5f5;"{% endif %}>
+                    <td>待付金额</td>
+                    <td class="text-danger fw-bold">
+                        ¥{{ order.unpaid_amount|floatformat:2 }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        {% if order.remark %}
+        <div class="card-no-pad mb-20">
+            <div class="card-header">📝 备注</div>
+            <div style="padding:12px;font-size:13px;">{{ order.remark }}</div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

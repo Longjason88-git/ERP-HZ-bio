@@ -19,12 +19,7 @@ from django.urls import path, include
 from django.shortcuts import redirect
 
 urlpatterns = [
-    # 根路径跳转到登录页
-    path('', lambda request: redirect('login')),
-    
-    # 后台管理
     path('admin/', admin.site.urls),
-    
-    # CRM 模块（包含登录页面）
     path('crm/', include('crm.urls')),
+    path('', include('crm.urls')),  # 根路径也指向crm
 ]

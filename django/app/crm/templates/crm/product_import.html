@@ -1,0 +1,199 @@
+{% extends 'crm/base.html' %}
+{% block title %}导入产品目录{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;margin:0 auto;">
+
+    <div class="d-flex justify-content-between align-items-center mb-20">
+        <h4>📂 批量导入产品目录</h4>
+        <a href="{% url 'product_list' %}"
+           class="btn btn-outline-secondary btn-sm">← 返回产品列表</a>
+    </div>
+
+    {% if messages %}
+        {% for msg in messages %}
+        <div class="message message-{{ msg.tags }}">{{ msg }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- 上传表单 -->
+    <div class="card mb-20">
+        <div class="card-title">选择文件上传</div>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>选择品牌（可选，会覆盖文件中的品牌）</label>
+                <select name="brand_id" class="form-control">
+                    <option value="">-- 不指定品牌 --</option>
+                    {% for brand in brands %}
+                    <option value="{{ brand.pk }}">{{ brand.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>上传 Excel 文件 <span style="color:#888;">(.xlsx / .xls)</span></label>
+                <input type="file" name="excel_file"
+                       class="form-control" accept=".xlsx,.xls" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                🚀 开始导入
+            </button>
+        </form>
+    </div>
+
+    <!-- 识别到的列映射 -->
+    {% if import_col_map %}
+    <div class="card mb-20" style="border-left:4px solid #3498db;">
+        <div class="card-title">🔍 本次识别到的列映射</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>系统字段</th>
+                    <th>识别到的Excel列名</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field, header in import_col_map.items %}
+                <tr>
+                    <td class="text-muted">{{ field }}</td>
+                    <td><strong>{{ header }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- 失败条目详情 -->
+    {% if import_errors %}
+    <div class="card mb-20" style="border-left:4px solid #e74c3c;">
+        <div class="card-title" style="color:#e74c3c;">
+            ❌ 失败条目（{{ import_errors|length }} 条）
+        </div>
+        <div class="alert alert-warning">
+            💡 以下条目导入失败，请检查数据后重新导入
+        </div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>行号</th>
+                        <th>货号</th>
+                        <th>失败原因</th>
+                        <th>原始数据（前8列）</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for err in import_errors %}
+                    <tr>
+                        <td style="color:#e74c3c;">第{{ err.row }}行</td>
+                        <td><strong>{{ err.catalog }}</strong></td>
+                        <td style="color:#e74c3c;">{{ err.reason }}</td>
+                        <td class="text-small text-muted">{{ err.data }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 跳过条目 -->
+    {% if import_skips %}
+    <div class="card mb-20" style="border-left:4px solid #f39c12;">
+        <div class="card-title" style="color:#f39c12;">
+            ⚠️ 跳过条目（{{ import_skips|length }} 条）
+        </div>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>行号</th>
+                        <th>跳过原因</th>
+                        <th>原始数据</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for skip in import_skips %}
+                    <tr>
+                        <td style="color:#f39c12;">第{{ skip.row }}行</td>
+                        <td>{{ skip.reason }}</td>
+                        <td class="text-small text-muted">{{ skip.data }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 格式说明 -->
+    <div class="card" style="border-left:4px solid #27ae60;">
+        <div class="card-title">📖 Excel 格式说明</div>
+        <p style="color:#666;margin-bottom:12px;font-size:14px;">
+            系统会<strong>自动识别列名</strong>，第一行为表头，支持以下关键词：
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>字段</th>
+                    <th>必填</th>
+                    <th>识别的表头关键词</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>货号</strong></td>
+                    <td style="color:#e74c3c;">✅ 必填</td>
+                    <td>货号、Cat No、Cat.No、产品编号、Item No、SKU</td>
+                </tr>
+                <tr>
+                    <td>产品名称</td>
+                    <td style="color:#888;">选填</td>
+                    <td>产品名称、Product Name、品名、中文名</td>
+                </tr>
+                <tr>
+                    <td>规格</td>
+                    <td style="color:#888;">选填</td>
+                    <td>规格、Size、Package、包装、规格型号</td>
+                </tr>
+                <tr>
+                    <td>单位</td>
+                    <td style="color:#888;">选填</td>
+                    <td>单位、Unit、包装单位</td>
+                </tr>
+                <tr>
+                    <td>目录价</td>
+                    <td style="color:#888;">选填</td>
+                    <td>目录价、List Price、官网价、含税价、价格</td>
+                </tr>
+                <tr>
+                    <td>经销商价</td>
+                    <td style="color:#888;">选填</td>
+                    <td>经销商价、进价、Cost、成本价、代理价</td>
+                </tr>
+                <tr>
+                    <td>终端价</td>
+                    <td style="color:#888;">选填</td>
+                    <td>终端价、售价、销售价、零售价</td>
+                </tr>
+                <tr>
+                    <td>CAS号</td>
+                    <td style="color:#888;">选填</td>
+                    <td>CAS、CAS号、CAS No</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="alert alert-info" style="margin-top:12px;">
+            <strong>💡 重要提示：</strong><br>
+            • 相同货号的产品会<strong>自动更新</strong>，不会重复创建<br>
+            • 价格支持带 ¥ 符号和千分位，如：¥1,234.56<br>
+            • 空白行自动跳过<br>
+            • 每次最多显示 50 条失败记录
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+ENDOFFILE
