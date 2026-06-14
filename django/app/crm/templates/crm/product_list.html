@@ -1,0 +1,372 @@
+{% extends 'crm/base.html' %}
+{% block title %}产品管理{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-20">
+    <h4>🧪 产品管理
+        <span class="text-muted text-small">（共{{ total_count }}个）</span>
+    </h4>
+    <div style="display:flex;gap:8px;">
+        <a href="{% url 'product_import' %}" class="btn btn-success btn-sm">
+            📂 批量导入
+        </a>
+        <a href="/admin/crm/product/add/" class="btn btn-primary btn-sm">
+            ＋ 添加产品
+        </a>
+    </div>
+</div>
+
+<!-- 搜索过滤 -->
+<div class="card mb-16">
+    <form method="get" class="form-row" style="margin-bottom:0;">
+        <div class="form-col">
+            <input type="text" name="search" value="{{ search }}"
+                   class="form-control form-control-sm"
+                   placeholder="🔍 产品名称 / 货号 / CAS号">
+        </div>
+        <div class="form-col">
+            <select name="brand" class="form-control form-control-sm">
+                <option value="">全部品牌</option>
+                {% for b in brands %}
+                <option value="{{ b.pk }}"
+                    {% if brand_id == b.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ b.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-col">
+            <select name="category" class="form-control form-control-sm">
+                <option value="">全部类别</option>
+                {% for val, label in category_choices %}
+                <option value="{{ val }}"
+                    {% if category == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-col">
+            <select name="is_active" class="form-control form-control-sm">
+                <option value="">全部状态</option>
+                <option value="1" {% if is_active == '1' %}selected{% endif %}>在售</option>
+                <option value="0" {% if is_active == '0' %}selected{% endif %}>停售</option>
+            </select>
+        </div>
+        <div class="form-col-auto" style="display:flex;gap:6px;">
+            <button type="submit" class="btn btn-primary btn-sm">筛选</button>
+            <a href="{% url 'product_list' %}"
+               class="btn btn-outline-secondary btn-sm">重置</a>
+        </div>
+    </form>
+</div>
+
+<!-- 批量删除表单 -->
+<form method="post" action="{% url 'product_bulk_delete' %}" id="bulkForm">
+    {% csrf_token %}
+
+    <div id="bulkBar"
+         style="display:none;background:#fff3cd;padding:8px 16px;
+                border-radius:4px;margin-bottom:12px;
+                align-items:center;gap:12px;">
+        <span id="selectedCount" class="fw-bold">已选 0 个</span>
+        <button type="submit" class="btn btn-danger btn-sm"
+                onclick="return confirm('确认删除？此操作不可恢复！')">
+            🗑 删除选中
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                onclick="clearSelection()">取消</button>
+    </div>
+
+    <div class="card-no-pad">
+        <div class="table-responsive">
+            <table id="productTable">
+                <thead>
+                    <tr class="table-dark">
+                        <th style="width:36px;">
+                            <input type="checkbox" id="selectAll"
+                                   onchange="toggleAll(this)">
+                        </th>
+                        <th>品牌</th>
+                        <th>货号 ✏️</th>
+                        <th>产品名称 ✏️</th>
+                        <th>规格 ✏️</th>
+                        <th>单位 ✏️</th>
+                        <th class="text-end">目录价 ✏️</th>
+                        <th class="text-end">经销商价 ✏️</th>
+                        <th class="text-end">终端价 ✏️</th>
+                        <th>存储</th>
+                        <th>状态</th>
+                        <th>详情</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr id="row-{{ p.pk }}">
+                        <td>
+                            <input type="checkbox" name="product_ids"
+                                   value="{{ p.pk }}" class="row-checkbox"
+                                   onchange="updateBulkBar()">
+                        </td>
+                        <td>
+                            <span class="badge badge-info">
+                                {{ p.brand.name|default:'未设置' }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="editable"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="catalog_number"
+                                  title="点击编辑">{{ p.catalog_number }}</span>
+                        </td>
+                        <td>
+                            <span class="editable"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="name"
+                                  title="点击编辑">{{ p.name }}</span>
+                        </td>
+                        <td>
+                            <span class="editable"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="spec"
+                                  title="点击编辑">{{ p.spec }}</span>
+                        </td>
+                        <td>
+                            <span class="editable"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="unit"
+                                  title="点击编辑">{{ p.unit }}</span>
+                        </td>
+                        <td class="text-end">
+                            <span class="editable editable-number"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="list_price"
+                                  data-raw="{{ p.list_price|default:'' }}"
+                                  title="点击编辑">
+                                {% if p.list_price %}
+                                    ¥{{ p.list_price|floatformat:2 }}
+                                {% else %}-{% endif %}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <span class="editable editable-number"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="dealer_price"
+                                  data-raw="{{ p.dealer_price|default:'' }}"
+                                  title="点击编辑">
+                                {% if p.dealer_price %}
+                                    ¥{{ p.dealer_price|floatformat:2 }}
+                                {% else %}-{% endif %}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <span class="editable editable-number"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="terminal_price"
+                                  data-raw="{{ p.terminal_price|default:'' }}"
+                                  title="点击编辑">
+                                {% if p.terminal_price %}
+                                    <span class="text-success fw-bold">
+                                        ¥{{ p.terminal_price|floatformat:2 }}
+                                    </span>
+                                {% else %}-{% endif %}
+                            </span>
+                        </td>
+                        <td class="text-small">{{ p.get_storage_display }}</td>
+                        <td>
+                            <span class="status-toggle"
+                                  data-pk="{{ p.pk }}"
+                                  data-field="is_active"
+                                  data-value="{{ p.is_active|yesno:'true,false' }}"
+                                  style="cursor:pointer;"
+                                  title="点击切换">
+                                {% if p.is_active %}
+                                    <span class="badge badge-success">在售</span>
+                                {% else %}
+                                    <span class="badge badge-gray">停售</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/admin/crm/product/{{ p.pk }}/change/"
+                               class="btn btn-outline-secondary btn-sm">详情</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12"
+                            style="text-align:center;padding:40px;color:#888;">
+                            暂无产品，请
+                            <a href="{% url 'product_import' %}">批量导入</a>
+                            或
+                            <a href="/admin/crm/product/add/">手动添加</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<style>
+.editable {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px dashed transparent;
+    display: inline-block;
+    min-width: 40px;
+    min-height: 20px;
+    transition: all 0.2s;
+}
+.editable:hover {
+    background: #f0f7ff;
+    border-color: #3498db;
+}
+.inline-input {
+    padding: 2px 6px;
+    border: 2px solid #3498db;
+    border-radius: 3px;
+    font-size: 13px;
+    outline: none;
+}
+</style>
+
+<script>
+const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+// ===== 内联编辑 =====
+document.querySelectorAll('.editable').forEach(function(el) {
+    el.addEventListener('click', function() {
+        if (this.querySelector('input')) return;
+
+        const pk = this.dataset.pk;
+        const field = this.dataset.field;
+        const isNumber = this.classList.contains('editable-number');
+        const rawVal = this.dataset.raw || this.textContent.trim().replace(/^¥/, '');
+        const originalHTML = this.innerHTML;
+
+        const input = document.createElement('input');
+        input.type = isNumber ? 'number' : 'text';
+        input.className = 'inline-input';
+        input.value = rawVal === '-' ? '' : rawVal;
+        if (isNumber) {
+            input.step = '0.01';
+            input.min = '0';
+            input.style.width = '90px';
+        } else {
+            input.style.width = Math.max(120, el.offsetWidth) + 'px';
+        }
+
+        this.innerHTML = '';
+        this.appendChild(input);
+        input.focus();
+        input.select();
+
+        const self = this;
+
+        function saveEdit() {
+            const newVal = input.value.trim();
+            fetch('/crm/products/' + pk + '/edit/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': CSRF,
+                },
+                body: 'field=' + field + '&value=' + encodeURIComponent(newVal),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (isNumber) {
+                        if (newVal) {
+                            const display = parseFloat(newVal).toFixed(2);
+                            self.dataset.raw = newVal;
+                            if (field === 'terminal_price') {
+                                self.innerHTML = '<span class="text-success fw-bold">¥' + display + '</span>';
+                            } else {
+                                self.innerHTML = '¥' + display;
+                            }
+                        } else {
+                            self.dataset.raw = '';
+                            self.innerHTML = '-';
+                        }
+                    } else {
+                        self.textContent = newVal || '-';
+                    }
+                    self.style.background = '#d4edda';
+                    setTimeout(function() { self.style.background = ''; }, 1200);
+                } else {
+                    self.innerHTML = originalHTML;
+                    alert('保存失败：' + (data.error || '未知错误'));
+                }
+            })
+            .catch(function() {
+                self.innerHTML = originalHTML;
+                alert('网络错误，请重试');
+            });
+        }
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+            if (e.key === 'Escape') { self.innerHTML = originalHTML; }
+        });
+        input.addEventListener('blur', saveEdit);
+    });
+});
+
+// ===== 状态切换 =====
+document.querySelectorAll('.status-toggle').forEach(function(el) {
+    el.addEventListener('click', function() {
+        const pk = this.dataset.pk;
+        const currentVal = this.dataset.value === 'true';
+        const newVal = !currentVal;
+        const self = this;
+
+        fetch('/crm/products/' + pk + '/edit/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': CSRF,
+            },
+            body: 'field=is_active&value=' + newVal,
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                self.dataset.value = newVal ? 'true' : 'false';
+                self.innerHTML = newVal
+                    ? '<span class="badge badge-success">在售</span>'
+                    : '<span class="badge badge-gray">停售</span>';
+            }
+        });
+    });
+});
+
+// ===== 批量选择 =====
+function toggleAll(cb) {
+    document.querySelectorAll('.row-checkbox').forEach(function(c) {
+        c.checked = cb.checked;
+    });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    const bar = document.getElementById('bulkBar');
+    bar.style.display = checked > 0 ? 'flex' : 'none';
+    document.getElementById('selectedCount').textContent = '已选 ' + checked + ' 个';
+}
+
+function clearSelection() {
+    document.querySelectorAll('.row-checkbox').forEach(function(c) {
+        c.checked = false;
+    });
+    document.getElementById('selectAll').checked = false;
+    updateBulkBar();
+}
+</script>
+
+{% endblock %}
+ENDOFFILE
+

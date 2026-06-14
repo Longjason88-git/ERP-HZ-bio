@@ -1,0 +1,137 @@
+{% extends 'crm/base.html' %}
+{% block title %}首页 - 试剂耗材ERP{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom:20px; color:#2c3e50;">📊 业务总览</h2>
+
+<!-- 统计卡片 -->
+<div class="grid-4" style="margin-bottom:24px;">
+    <div class="stat-card">
+        <div class="stat-number">{{ total_customers }}</div>
+        <div class="stat-label">全部客户</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#27ae60;">{{ active_customers }}</div>
+        <div class="stat-label">活跃客户</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#f39c12;">{{ potential_customers }}</div>
+        <div class="stat-label">潜在客户</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#e74c3c;">{{ birthday_customers|length }}</div>
+        <div class="stat-label">近期生日</div>
+    </div>
+</div>
+
+<!-- 生日提醒（有数据才显示） -->
+{% if birthday_customers %}
+<div class="card" style="border-left:4px solid #e74c3c; margin-bottom:20px;">
+    <div class="card-title" style="color:#e74c3c;">
+        🎂 近7天生日提醒（{{ birthday_customers|length }} 人）
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:12px;">
+        {% for item in birthday_customers %}
+        <div style="
+            background: {% if item.is_today %}#fff3cd{% else %}#f8f9fa{% endif %};
+            border: 1px solid {% if item.is_today %}#ffc107{% else %}#dee2e6{% endif %};
+            border-radius: 8px;
+            padding: 12px 16px;
+            min-width: 200px;
+        ">
+            <div style="font-weight:bold; margin-bottom:4px;">
+                {% if item.is_today %}🎉{% else %}🎂{% endif %}
+                <a href="{% url 'customer_detail' item.customer.pk %}">
+                    {{ item.customer.name }}
+                </a>
+            </div>
+            <div style="font-size:13px; color:#666;">
+                {{ item.customer.institution }}
+                {% if item.customer.lab_group %} · {{ item.customer.lab_group }}{% endif %}
+            </div>
+            <div style="font-size:13px; margin-top:4px;">
+                生日：{{ item.customer.birthday|date:"m月d日" }}
+                &nbsp;
+                {% if item.is_today %}
+                    <span style="color:#e74c3c; font-weight:bold;">🎊 今天！</span>
+                {% else %}
+                    <span style="color:#f39c12;">还有 {{ item.days }} 天</span>
+                {% endif %}
+            </div>
+            {% if item.customer.phone %}
+            <div style="font-size:12px; color:#999; margin-top:4px;">
+                📱 {{ item.customer.phone }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 下方两栏 -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+    <!-- 最近添加的客户 -->
+    <div class="card">
+        <div class="card-title">
+            👥 最近添加的客户
+            <a href="{% url 'customer_add' %}" class="btn btn-primary"
+               style="float:right; font-size:13px; padding:4px 10px;">+ 新增</a>
+        </div>
+        <table>
+            <tr>
+                <th>姓名</th>
+                <th>单位</th>
+                <th>状态</th>
+            </tr>
+            {% for c in recent_customers %}
+            <tr>
+                <td><a href="{% url 'customer_detail' c.pk %}">{{ c.name }}</a></td>
+                <td style="font-size:13px; color:#666;">
+                    {{ c.institution|default:"-" }}
+                    {% if c.lab_group %}<br><small>{{ c.lab_group }}</small>{% endif %}
+                </td>
+                <td>
+                    <span class="badge badge-{{ c.status }}">
+                        {{ c.get_status_display }}
+                    </span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align:center; color:#999; padding:20px;">
+                    暂无客户，<a href="{% url 'customer_add' %}">立即添加</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- 最近跟进记录 -->
+    <div class="card">
+        <div class="card-title">📝 最近跟进记录</div>
+        <table>
+            <tr>
+                <th>客户</th>
+                <th>方式</th>
+                <th>时间</th>
+            </tr>
+            {% for f in recent_followups %}
+            <tr>
+                <td><a href="{% url 'customer_detail' f.customer.pk %}">{{ f.customer.name }}</a></td>
+                <td>{{ f.get_follow_type_display }}</td>
+                <td style="color:#999; font-size:13px;">{{ f.created_at|date:"m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align:center; color:#999; padding:20px;">
+                    暂无跟进记录
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</div>
+{% endblock %}

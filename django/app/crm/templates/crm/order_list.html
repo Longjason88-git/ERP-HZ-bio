@@ -1,0 +1,240 @@
+{% extends 'crm/base.html' %}
+{% block title %}订单管理{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-20">
+    <h4>📦 订单管理</h4>
+    <a href="{% url 'order_create' %}" class="btn btn-primary btn-sm">
+        ＋ 新建订单
+    </a>
+</div>
+
+<!-- 统计卡片 -->
+<div class="grid-4 mb-20">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_count|default:0 }}</div>
+        <div class="stat-label">订单总数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#27ae60;">
+            ¥{{ stats.total_amount|default:0|floatformat:0 }}
+        </div>
+        <div class="stat-label">订单总额</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#17a2b8;">
+            ¥{{ stats.total_paid|default:0|floatformat:0 }}
+        </div>
+        <div class="stat-label">已收款</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#e74c3c;">
+            ¥{{ stats.total_unpaid|default:0|floatformat:0 }}
+        </div>
+        <div class="stat-label">待收款</div>
+    </div>
+</div>
+
+<!-- 搜索 -->
+<div class="card mb-16">
+    <form method="get" class="form-row" style="margin-bottom:0;">
+        <div class="form-col">
+            <input type="text" name="search" value="{{ search }}"
+                   class="form-control form-control-sm"
+                   placeholder="🔍 订单号/客户名/单位">
+        </div>
+        <div class="form-col">
+            <select name="status" class="form-control form-control-sm">
+                <option value="">全部状态</option>
+                {% for val, label in status_choices %}
+                <option value="{{ val }}"
+                    {% if status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-col">
+            <select name="invoice_status" class="form-control form-control-sm">
+                <option value="">开票状态</option>
+                {% for val, label in invoice_status_choices %}
+                <option value="{{ val }}"
+                    {% if invoice_status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-col">
+            <select name="payment_status" class="form-control form-control-sm">
+                <option value="">付款状态</option>
+                {% for val, label in payment_status_choices %}
+                <option value="{{ val }}"
+                    {% if payment_status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-col-auto" style="display:flex;gap:6px;">
+            <button type="submit" class="btn btn-primary btn-sm">筛选</button>
+            <a href="{% url 'order_list' %}"
+               class="btn btn-outline-secondary btn-sm">重置</a>
+        </div>
+    </form>
+</div>
+
+<!-- 批量操作表单 -->
+<form method="post" action="{% url 'order_bulk_export' %}" id="bulkForm">
+    {% csrf_token %}
+
+    <div id="bulkBar"
+         style="display:none;background:#e8f4fd;padding:10px 16px;
+                border-radius:4px;margin-bottom:12px;
+                align-items:center;gap:12px;flex-wrap:wrap;">
+        <span id="selectedCount" class="fw-bold text-primary">已选 0 个</span>
+        <button type="submit" name="action" value="export"
+                class="btn btn-success btn-sm">
+            📥 导出开票Excel
+        </button>
+        <button type="submit" name="action" value="mark_submitted"
+                class="btn btn-warning btn-sm"
+                onclick="return confirm('确认标记为已递交财务？')">
+            📋 标记已递交财务
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                onclick="clearSelection()">取消</button>
+    </div>
+
+    <div class="card-no-pad">
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr class="table-dark">
+                        <th style="width:36px;">
+                            <input type="checkbox" id="selectAll"
+                                   onchange="toggleAll(this)">
+                        </th>
+                        <th>订单编号</th>
+                        <th>日期</th>
+                        <th>客户</th>
+                        <th>单位</th>
+                        <th>状态</th>
+                        <th>发票</th>
+                        <th>发货</th>
+                        <th class="text-end">金额</th>
+                        <th class="text-end">待付</th>
+                        <th>付款</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="order_ids"
+                                   value="{{ order.pk }}" class="row-checkbox"
+                                   onchange="updateBulkBar()">
+                        </td>
+                        <td>
+                            <a href="{% url 'order_detail' order.pk %}"
+                               style="font-weight:bold;color:#3498db;text-decoration:none;">
+                                {{ order.order_no }}
+                            </a>
+                        </td>
+                        <td class="text-muted text-small">{{ order.order_date }}</td>
+                        <td>{{ order.customer.name }}</td>
+                        <td class="text-muted text-small">
+                            {{ order.customer.institution|truncatechars:10 }}
+                        </td>
+                        <td>
+                            {% if order.status == 'draft' %}
+                                <span class="badge badge-draft">草稿</span>
+                            {% elif order.status == 'confirmed' %}
+                                <span class="badge badge-confirmed">已确认</span>
+                            {% elif order.status == 'purchasing' %}
+                                <span class="badge badge-purchasing">采购中</span>
+                            {% elif order.status == 'shipped' %}
+                                <span class="badge badge-shipped">已发货</span>
+                            {% elif order.status == 'completed' %}
+                                <span class="badge badge-completed">已完成</span>
+                            {% elif order.status == 'cancelled' %}
+                                <span class="badge badge-cancelled">已取消</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-small">
+                            {% if order.invoice_type == 'none' %}
+                                <span class="text-muted">不开票</span>
+                            {% elif order.invoice_status == 'issued' %}
+                                <span class="text-success">✅已开票</span>
+                            {% elif order.invoice_status == 'submitted' %}
+                                <span class="text-primary">📋已递交</span>
+                            {% elif order.invoice_status == 'not_required' %}
+                                <span class="text-muted">无需开票</span>
+                            {% else %}
+                                <span class="text-warning">⏳待开票</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-small">
+                            {{ order.get_shipping_method_display|default:'-' }}
+                        </td>
+                        <td class="text-end fw-bold">
+                            ¥{{ order.final_amount|floatformat:2 }}
+                        </td>
+                        <td class="text-end">
+                            {% if order.unpaid_amount > 0 %}
+                                <span class="text-danger">
+                                    ¥{{ order.unpaid_amount|floatformat:2 }}
+                                </span>
+                            {% else %}
+                                <span class="text-success">✅</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.payment_status == 'paid' %}
+                                <span class="badge badge-success">已付款</span>
+                            {% elif order.payment_status == 'partial' %}
+                                <span class="badge badge-warning">部分付</span>
+                            {% else %}
+                                <span class="badge badge-danger">未付款</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'order_detail' order.pk %}"
+                               class="btn btn-outline-primary btn-sm">详情</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12"
+                            style="text-align:center;padding:40px;color:#888;">
+                            暂无订单，<a href="{% url 'order_create' %}">立即创建</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<script>
+function toggleAll(cb) {
+    document.querySelectorAll('.row-checkbox').forEach(function(c) {
+        c.checked = cb.checked;
+    });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    document.getElementById('bulkBar').style.display = checked > 0 ? 'flex' : 'none';
+    document.getElementById('selectedCount').textContent = '已选 ' + checked + ' 个';
+}
+
+function clearSelection() {
+    document.querySelectorAll('.row-checkbox').forEach(function(c) {
+        c.checked = false;
+    });
+    document.getElementById('selectAll').checked = false;
+    updateBulkBar();
+}
+</script>
+
+{% endblock %}
+ENDOFFILE

@@ -1,0 +1,154 @@
+{% extends 'crm/base.html' %}
+{% block title %}{{ customer.name }} - 客户详情{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+    <a href="{% url 'customer_list' %}" style="color:#666; text-decoration:none;">← 返回客户列表</a>
+    <a href="{% url 'customer_edit' customer.pk %}" class="btn btn-secondary">✏️ 编辑信息</a>
+</div>
+
+<!-- 生日提醒横幅 -->
+{% if customer.is_birthday_today %}
+<div style="background:#fff3cd; border:1px solid #ffc107; border-radius:8px;
+            padding:12px 20px; margin-bottom:16px; font-size:15px;">
+    🎉 今天是 <strong>{{ customer.name }}</strong> 的生日！记得送上祝福！
+</div>
+{% elif customer.is_birthday_week %}
+<div style="background:#d1ecf1; border:1px solid #bee5eb; border-radius:8px;
+            padding:12px 20px; margin-bottom:16px; font-size:14px;">
+    🎂 <strong>{{ customer.name }}</strong> 还有 {{ customer.days_until_birthday }} 天过生日
+    （{{ customer.birthday|date:"m月d日" }}），提前准备祝福吧！
+</div>
+{% endif %}
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+    <!-- 基本信息 -->
+    <div class="card">
+        <div class="card-title">
+            👤 {{ customer.name }}
+            <span class="badge badge-{{ customer.status }}" style="margin-left:8px;">
+                {{ customer.get_status_display }}
+            </span>
+        </div>
+
+        <table style="font-size:14px;">
+            <tr>
+                <td style="color:#999; width:90px; padding:7px 0;">单位</td>
+                <td>{{ customer.institution|default:"未填写" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">课题组</td>
+                <td>{{ customer.lab_group|default:"未填写" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">研究方向</td>
+                <td>{{ customer.research_direction|default:"未填写" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">电话</td>
+                <td>{{ customer.phone|default:"未填写" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">邮箱</td>
+                <td>
+                    {% if customer.email %}
+                    <a href="mailto:{{ customer.email }}">{{ customer.email }}</a>
+                    {% else %}未填写{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">生日</td>
+                <td>
+                    {% if customer.birthday %}
+                        {{ customer.birthday|date:"m月d日" }}
+                        {% if customer.is_birthday_today %}
+                            🎉 <span style="color:#e74c3c;">今天！</span>
+                        {% elif customer.is_birthday_week %}
+                            🎈 <span style="color:#f39c12;">还有{{ customer.days_until_birthday }}天</span>
+                        {% endif %}
+                    {% else %}
+                        未填写
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">来源</td>
+                <td>{{ customer.get_source_display }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">负责人</td>
+                <td>{{ customer.assigned_to|default:"未分配" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">备注</td>
+                <td style="white-space:pre-line;">{{ customer.notes|default:"无" }}</td>
+            </tr>
+            <tr>
+                <td style="color:#999; padding:7px 0;">创建时间</td>
+                <td>{{ customer.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 添加跟进记录 -->
+    <div class="card">
+        <div class="card-title">📝 添加跟进记录</div>
+        <form method="post" action="{% url 'followup_add' customer.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>跟进方式</label>
+                <select name="follow_type" class="form-control" required>
+                    <option value="wechat">微信</option>
+                    <option value="phone">电话</option>
+                    <option value="email">邮件</option>
+                    <option value="visit">上门拜访</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>跟进内容</label>
+                <textarea name="content" class="form-control" rows="4"
+                          placeholder="记录本次沟通内容、客户需求、报价等..." required></textarea>
+            </div>
+            <div class="form-group">
+                <label>下次行动计划</label>
+                <input type="text" name="next_action" class="form-control"
+                       placeholder="例：发送碧云天试剂报价单">
+            </div>
+            <div class="form-group">
+                <label>下次跟进日期</label>
+                <input type="date" name="next_date" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-success">✅ 保存跟进记录</button>
+        </form>
+    </div>
+
+</div>
+
+<!-- 跟进历史 -->
+<div class="card" style="margin-top:0;">
+    <div class="card-title">🕐 跟进历史（{{ followups.count }} 条）</div>
+
+    {% for f in followups %}
+    <div style="border-left:3px solid #3498db; padding:12px 16px; margin-bottom:12px;
+                background:#f8f9fa; border-radius:0 4px 4px 0;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <strong style="color:#3498db;">{{ f.get_follow_type_display }}</strong>
+            <span style="color:#999; font-size:13px;">
+                {{ f.created_by }} · {{ f.created_at|date:"Y-m-d H:i" }}
+            </span>
+        </div>
+        <div style="white-space:pre-line; margin-bottom:6px;">{{ f.content }}</div>
+        {% if f.next_action %}
+        <div style="color:#f39c12; font-size:13px;">
+            📌 下次行动：{{ f.next_action }}
+            {% if f.next_date %}（{{ f.next_date }}）{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div style="text-align:center; color:#999; padding:20px;">暂无跟进记录</div>
+    {% endfor %}
+</div>
+{% endblock %}

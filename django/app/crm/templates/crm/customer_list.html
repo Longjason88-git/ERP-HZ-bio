@@ -1,0 +1,90 @@
+{% extends 'crm/base.html' %}
+{% block title %}客户列表 - 试剂耗材ERP{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2 style="color:#2c3e50;">👥 客户管理</h2>
+    <a href="{% url 'customer_add' %}" class="btn btn-primary">+ 新增客户</a>
+</div>
+
+<div class="card">
+    <!-- 搜索筛选 -->
+    <form method="get" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="text" name="search" class="form-control"
+               placeholder="搜索姓名、单位、课题组、研究方向..."
+               value="{{ search }}" style="flex:2; min-width:200px;">
+
+        <select name="status" class="form-control" style="width:130px;">
+            <option value="">全部状态</option>
+            <option value="potential" {% if status == 'potential' %}selected{% endif %}>潜在客户</option>
+            <option value="active" {% if status == 'active' %}selected{% endif %}>活跃客户</option>
+            <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>沉睡客户</option>
+            <option value="lost" {% if status == 'lost' %}selected{% endif %}>流失客户</option>
+        </select>
+
+        <select name="source" class="form-control" style="width:140px;">
+            <option value="">全部来源</option>
+            <option value="wechat" {% if source == 'wechat' %}selected{% endif %}>微信介绍</option>
+            <option value="xiaohongshu" {% if source == 'xiaohongshu' %}selected{% endif %}>小红书</option>
+            <option value="xianyu" {% if source == 'xianyu' %}selected{% endif %}>咸鱼</option>
+            <option value="taobao" {% if source == 'taobao' %}selected{% endif %}>淘宝</option>
+            <option value="dealer" {% if source == 'dealer' %}selected{% endif %}>经销商介绍</option>
+            <option value="other" {% if source == 'other' %}selected{% endif %}>其他</option>
+        </select>
+
+        <button type="submit" class="btn btn-primary">搜索</button>
+        <a href="{% url 'customer_list' %}" class="btn btn-secondary">重置</a>
+    </form>
+
+    <div style="color:#999; font-size:13px; margin-bottom:12px;">
+        共 {{ customers|length }} 位客户
+    </div>
+
+    <table>
+        <tr>
+            <th>姓名</th>
+            <th>单位</th>
+            <th>课题组</th>
+            <th>研究方向</th>
+            <th>电话</th>
+            <th>状态</th>
+            <th>来源</th>
+            <th>操作</th>
+        </tr>
+        {% for c in customers %}
+        <tr>
+            <td>
+                <strong>{{ c.name }}</strong>
+                {% if c.is_birthday_today %}
+                    <span title="今天生日">🎂</span>
+                {% elif c.is_birthday_week %}
+                    <span title="{{ c.days_until_birthday }}天后生日" style="font-size:12px;">🎈</span>
+                {% endif %}
+            </td>
+            <td>{{ c.institution|default:"-" }}</td>
+            <td>{{ c.lab_group|default:"-" }}</td>
+            <td style="font-size:13px; color:#666; max-width:160px;">
+                {{ c.research_direction|truncatechars:30|default:"-" }}
+            </td>
+            <td style="font-size:13px;">{{ c.phone|default:"-" }}</td>
+            <td>
+                <span class="badge badge-{{ c.status }}">{{ c.get_status_display }}</span>
+            </td>
+            <td style="font-size:13px; color:#666;">{{ c.get_source_display }}</td>
+            <td>
+                <a href="{% url 'customer_detail' c.pk %}"
+                   class="btn btn-primary" style="padding:3px 8px; font-size:12px;">查看</a>
+                <a href="{% url 'customer_edit' c.pk %}"
+                   class="btn btn-secondary" style="padding:3px 8px; font-size:12px;">编辑</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="8" style="text-align:center; padding:40px; color:#999;">
+                暂无客户，<a href="{% url 'customer_add' %}">立即添加第一个客户</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

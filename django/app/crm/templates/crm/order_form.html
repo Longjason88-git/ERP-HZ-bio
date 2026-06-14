@@ -1,0 +1,1206 @@
+{% extends 'crm/base.html' %}
+{% block title %}新建订单{% endblock %}
+
+{% block content %}
+<div style="max-width:1400px;">
+
+<div class="d-flex justify-content-between align-items-center mb-20">
+    <h4>📝 新建订单</h4>
+    <a href="{% url 'order_list' %}" class="btn btn-outline-secondary btn-sm">
+        ← 返回列表
+    </a>
+</div>
+
+<form method="post" id="orderForm">
+    {% csrf_token %}
+    <input type="hidden" name="items_json" id="items_json" value="[]">
+
+    <div class="row">
+        <!-- 左栏 -->
+        <div class="col-8">
+
+            <!-- 基本信息 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-header primary">📋 基本信息</div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-col" style="flex:2;">
+                            <label>客户 <span style="color:red">*</span></label>
+                            <select name="customer_id" id="customerSelect"
+                                    class="form-control" required>
+                                <option value="">-- 请选择客户 --</option>
+                                {% for c in customers %}
+                                <option value="{{ c.pk }}">
+                                    {{ c.name }}
+                                    {% if c.institution %} - {{ c.institution }}{% endif %}
+                                    {% if c.lab_group %} [{{ c.lab_group }}]{% endif %}
+                                    ({{ c.get_customer_type_display }} {{ c.level }}级)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-col">
+                            <label>订单日期</label>
+                            <input type="date" name="order_date"
+                                   value="{{ today }}" class="form-control">
+                        </div>
+                        <div class="form-col">
+                            <label>付款方式</label>
+                            <select name="payment_term" id="paymentTerm"
+                                    class="form-control">
+                                {% for val, label in payment_term_choices %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 客户折扣信息栏 -->
+                    <div id="customerInfoBar" style="display:none;
+                         background:#e8f4fd;padding:10px 14px;border-radius:4px;
+                         border-left:4px solid #3498db;margin-top:10px;">
+                        <div style="display:flex;align-items:center;
+                                    gap:20px;flex-wrap:wrap;">
+                            <span>
+                                👤 <strong id="customerTypeText"></strong>
+                            </span>
+                            <span>
+                                💰 默认折扣：
+                                <strong id="discountText"
+                                        style="color:#e74c3c;"></strong>
+                            </span>
+                            <span style="color:#666;font-size:13px;">
+                                全局调整：
+                                <input type="number" id="globalDiscount"
+                                       min="1" max="100" step="0.1"
+                                       style="width:65px;padding:2px 6px;
+                                              border:1px solid #ddd;
+                                              border-radius:3px;">
+                                %
+                                <button type="button"
+                                        onclick="applyGlobalDiscount()"
+                                        class="btn btn-warning btn-sm"
+                                        style="margin-left:6px;padding:3px 10px;">
+                                    应用到全部
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 产品明细 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-header success"
+                     style="display:flex;justify-content:space-between;">
+                    <span>🧪 产品明细</span>
+                    <button type="button"
+                            class="btn btn-sm"
+                            style="color:white;border:1px solid white;
+                                   background:transparent;"
+                            onclick="addEmptyRow()">
+                        ＋ 手动添加行
+                    </button>
+                </div>
+
+                <!-- 产品搜索 -->
+                <div style="padding:10px 16px;background:#f8f9fa;
+                            border-bottom:1px solid #eee;position:relative;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="color:#666;white-space:nowrap;
+                                     font-size:14px;">🔍 搜索：</span>
+                        <input type="text" id="productSearch"
+                               class="form-control"
+                               placeholder="输入货号或产品名称..."
+                               autocomplete="off">
+                    </div>
+                    <div id="searchResults"
+                         style="display:none;position:absolute;
+                                left:16px;right:16px;top:100%;
+                                background:white;border:1px solid #ddd;
+                                border-radius:4px;
+                                box-shadow:0 4px 12px rgba(0,0,0,0.15);
+                                z-index:1000;max-height:320px;overflow-y:auto;">
+                    </div>
+                </div>
+
+                <!-- 快速查价（品牌+货号） -->
+                <div style="padding:10px 16px;background:#fff3cd;
+                            border-bottom:1px solid #ffc107;
+                            position:relative;">
+                    <div style="display:flex;gap:8px;align-items:center;
+                                flex-wrap:wrap;">
+                        <span style="color:#856404;white-space:nowrap;
+                                     font-size:14px;font-weight:bold;">
+                            ⚡ 快速查价：
+                        </span>
+                        <div style="position:relative;flex:1;min-width:120px;">
+                            <input type="text" id="quickBrand"
+                                   class="form-control"
+                                   placeholder="输入或选择品牌..."
+                                   autocomplete="off"
+                                   style="padding-right:30px;">
+                            <div id="brandDropdown"
+                                 style="display:none;position:absolute;
+                                        left:0;right:0;top:100%;
+                                        background:white;border:1px solid #ddd;
+                                        border-radius:0 0 4px 4px;
+                                        box-shadow:0 4px 12px rgba(0,0,0,0.15);
+                                        z-index:1001;max-height:200px;overflow-y:auto;">
+                            </div>
+                            <span style="position:absolute;right:8px;top:50%;
+                                        transform:translateY(-50%);
+                                        color:#999;pointer-events:none;">▼</span>
+                        </div>
+                        <input type="text" id="quickCatalog"
+                               class="form-control"
+                               placeholder="输入货号..."
+                               style="width:150px;"
+                               autocomplete="off">
+                        <button type="button" id="btnLookupPrice"
+                                class="btn btn-warning"
+                                style="white-space:nowrap;"
+                                onclick="lookupPrice()">
+                            🔍 查价
+                        </button>
+                        <button type="button"
+                                class="btn btn-success"
+                                style="white-space:nowrap;"
+                                onclick="addFromQuickLookup()">
+                            ＋ 添加到明细
+                        </button>
+                    </div>
+                    <div id="lookupResult"
+                         style="display:none;margin-top:8px;
+                                padding:8px 12px;border-radius:4px;
+                                background:#d4edda;border:1px solid #c3e6cb;">
+                    </div>
+                </div>
+
+                <!-- 明细表格 -->
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr style="background:#f0f0f0;">
+                                <th style="width:8%">品牌</th>
+                                <th style="width:10%">货号</th>
+                                <th style="width:20%">产品名称</th>
+                                <th style="width:9%">规格</th>
+                                <th style="width:5%">单位</th>
+                                <th style="width:6%">数量</th>
+                                <th style="width:9%">目录价</th>
+                                <th style="width:7%">折扣%</th>
+                                <th style="width:9%">单价</th>
+                                <th style="width:9%">小计</th>
+                                <th style="width:8%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsBody"></tbody>
+                        <tfoot>
+                            <tr style="background:#f8f9fa;font-weight:bold;">
+                                <td colspan="9" class="text-end"
+                                    style="padding:10px 12px;">
+                                    产品合计：
+                                </td>
+                                <td style="color:#27ae60;padding:10px 12px;"
+                                    id="itemsTotal">¥0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 右栏 -->
+        <div class="col-4">
+
+            <!-- 收货信息 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-header">🚚 收货信息</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>收货联系人</label>
+                        <input type="text" name="shipping_contact"
+                               id="shipping_contact" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>收货电话</label>
+                        <input type="text" name="shipping_phone"
+                               id="shipping_phone" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>收货地址</label>
+                        <textarea name="shipping_address"
+                                  id="shipping_address"
+                                  class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>发货方式</label>
+                        <select name="shipping_method" id="shippingMethod"
+                                class="form-control">
+                            {% for val, label in shipping_method_choices %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 发票信息 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-header">🧾 发票信息</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>发票类型</label>
+                        <select name="invoice_type" id="invoiceType"
+                                class="form-control"
+                                onchange="toggleInvoiceFields()">
+                            {% for val, label in invoice_type_choices %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="invoiceFields">
+                        <div class="form-group">
+                            <label>发票抬头</label>
+                            <input type="text" name="invoice_title"
+                                   id="invoice_title" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>纳税人识别号</label>
+                            <input type="text" name="invoice_tax_id"
+                                   id="invoice_tax_id" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>发票邮箱</label>
+                            <input type="email" name="invoice_email"
+                                   id="invoice_email" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>开票备注</label>
+                            <input type="text" name="invoice_remark"
+                                   class="form-control"
+                                   placeholder="如：仅发货/代发等">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 费用汇总 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-header">💰 费用汇总</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>运费(元)</label>
+                        <input type="number" name="shipping_fee"
+                               id="shipping_fee" class="form-control"
+                               value="0" step="0.01" min="0"
+                               oninput="updateTotal()">
+                    </div>
+                    <div class="form-group">
+                        <label>额外优惠(元)</label>
+                        <input type="number" name="discount_amount"
+                               id="discount_amount" class="form-control"
+                               value="0" step="0.01" min="0"
+                               oninput="updateTotal()">
+                    </div>
+                    <hr>
+                    <div style="display:flex;justify-content:space-between;
+                                align-items:center;">
+                        <span style="font-weight:bold;">订单总额：</span>
+                        <span id="grandTotal"
+                              style="font-size:22px;font-weight:bold;
+                                     color:#e74c3c;">¥0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 备注 -->
+            <div class="card-no-pad mb-20">
+                <div class="card-body">
+                    <label style="font-weight:bold;">订单备注</label>
+                    <textarea name="remark" class="form-control" rows="3"
+                              placeholder="特殊要求、代发信息等"></textarea>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100"
+                    style="font-size:15px;padding:12px;"
+                    onclick="return prepareSubmit()">
+                ✅ 保存订单
+            </button>
+            <a href="{% url 'order_list' %}"
+               class="btn btn-outline-secondary w-100"
+               style="margin-top:8px;">取消</a>
+        </div>
+    </div>
+</form>
+</div>
+
+<style>
+.item-row td { padding: 5px 6px; vertical-align: middle; }
+.item-row input {
+    padding: 3px 5px; border: 1px solid #ddd;
+    border-radius: 3px; font-size: 13px; width: 100%;
+    box-sizing: border-box;
+}
+.item-row input:focus { border-color: #3498db; outline: none; }
+.price-discounted { color: #e74c3c; font-weight: bold; }
+.discount-cell input { background: #fff8e1; }
+
+/* 品牌下拉样式 */
+.brand-dropdown {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 100%;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.brand-dropdown-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+.brand-dropdown-item:hover {
+    background: #f0f7ff;
+}
+.brand-dropdown-item.other {
+    background: #f8f9fa;
+    color: #6c757d;
+    font-style: italic;
+}
+</style>
+
+<script>
+// ===== 全局状态 =====
+var items = [];
+var currentCustomerId = '';
+var currentCustomerType = '';
+var currentLevel = '';
+var currentDefaultDiscount = 100;
+
+// 快速查价相关
+var quickLookupData = null;  // 存储最近查价结果
+var selectedBrandId = null;
+var selectedBrandName = null;
+
+// ===== 工具函数 =====
+function esc(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function calcPrice(listPrice, discount) {
+    if (!listPrice || listPrice <= 0) return 0;
+    var price = listPrice * discount / 100;
+    return Math.round(price * 100) / 100;
+}
+
+// ===== 客户选择 =====
+document.getElementById('customerSelect').addEventListener('change', function() {
+    currentCustomerId = this.value;
+    if (!currentCustomerId) {
+        document.getElementById('customerInfoBar').style.display = 'none';
+        return;
+    }
+
+    fetch('/crm/api/customers/' + currentCustomerId + '/info/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            // 填充基本信息
+            setValue('shipping_contact', data.shipping_contact);
+            setValue('shipping_phone', data.shipping_phone);
+            setValue('shipping_address', data.shipping_address);
+            setSelectValue('shippingMethod', data.shipping_method);
+            setSelectValue('invoiceType', data.invoice_type);
+            toggleInvoiceFields();
+            setValue('invoice_title', data.invoice_title);
+            setValue('invoice_tax_id', data.invoice_tax_id);
+            setValue('invoice_email', data.invoice_email);
+            setSelectValue('paymentTerm', data.payment_term);
+
+            // 折扣信息
+            currentCustomerType = data.customer_type || '';
+            currentLevel = data.level || '';
+            currentDefaultDiscount = parseFloat(data.discount_rate) || 100;
+
+            document.getElementById('customerTypeText').textContent =
+                (data.customer_type_display || '') + ' ' + currentLevel + '级';
+            document.getElementById('discountText').textContent =
+                data.discount_text || '无折扣';
+            document.getElementById('globalDiscount').value =
+                currentDefaultDiscount;
+            document.getElementById('customerInfoBar').style.display = 'block';
+
+            // 更新已有产品行的折扣
+            updateAllDiscounts(currentDefaultDiscount);
+        });
+});
+
+function setValue(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.value = val || '';
+}
+
+function setSelectValue(id, val) {
+    var el = document.getElementById(id);
+    if (el && val) el.value = val;
+}
+
+// ===== 产品搜索 =====
+var searchTimer = null;
+
+document.getElementById('productSearch').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    var q = this.value.trim();
+    if (q.length < 1) {
+        document.getElementById('searchResults').style.display = 'none';
+        return;
+    }
+    searchTimer = setTimeout(function() { doSearch(q); }, 300);
+});
+
+function doSearch(q) {
+    var url = '/crm/api/products/search/?q=' + encodeURIComponent(q);
+    if (currentCustomerId) {
+        url += '&customer_id=' + currentCustomerId;
+    }
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var box = document.getElementById('searchResults');
+            box.innerHTML = '';
+
+            if (!data.products.length) {
+                box.innerHTML =
+                    '<div style="padding:12px;color:#888;text-align:center;">' +
+                    '未找到产品</div>';
+                box.style.display = 'block';
+                return;
+            }
+
+            data.products.forEach(function(p) {
+                var div = document.createElement('div');
+                div.style.cssText =
+                    'padding:8px 14px;cursor:pointer;' +
+                    'border-bottom:1px solid #f0f0f0;transition:background 0.1s;';
+
+                var listPrice = parseFloat(p.terminal_price) || 0;
+                var discount = parseFloat(p.discount) || 100;
+                var finalPrice = parseFloat(p.discounted_price) || listPrice;
+
+                var priceHtml = listPrice > 0
+                    ? '<span style="color:#888;">目录价 ¥' +
+                      listPrice.toFixed(2) + '</span>'
+                    : '<span style="color:#ccc;">暂无定价</span>';
+
+                var discountHtml = '';
+                if (discount < 100 && listPrice > 0) {
+                    discountHtml =
+                        ' <span style="color:#f39c12;font-size:12px;">' +
+                        discount + '%</span>' +
+                        ' → <span style="color:#e74c3c;font-weight:bold;">¥' +
+                        finalPrice.toFixed(2) + '</span>';
+                }
+
+                div.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;' +
+                    'align-items:center;">' +
+                    '<span><strong style="color:#3498db;">' +
+                    esc(p.catalog_number) + '</strong>' +
+                    ' <span style="color:#888;font-size:12px;">[' +
+                    esc(p.brand_name) + ']</span></span>' +
+                    '<span style="font-size:13px;">' + priceHtml +
+                    discountHtml + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:12px;color:#555;margin-top:3px;">' +
+                    esc(p.product_name) + ' ' + esc(p.spec) + '</div>';
+
+                div.addEventListener('mouseenter', function() {
+                    this.style.background = '#f0f7ff';
+                });
+                div.addEventListener('mouseleave', function() {
+                    this.style.background = '';
+                });
+                div.addEventListener('click', function() {
+                    addFromSearch(p);
+                    document.getElementById('productSearch').value = '';
+                    box.style.display = 'none';
+                });
+                box.appendChild(div);
+            });
+            box.style.display = 'block';
+        });
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#productSearch') &&
+        !e.target.closest('#searchResults')) {
+        document.getElementById('searchResults').style.display = 'none';
+    }
+});
+
+// ===== 添加产品 =====
+function addFromSearch(p) {
+    var listPrice = parseFloat(p.terminal_price) || 0;
+    var discount = parseFloat(p.discount) || currentDefaultDiscount;
+    var unitPrice = parseFloat(p.discounted_price) || listPrice;
+
+    items.push({
+        brand_name: p.brand_name || '',
+        brand_id: p.brand_id || null,
+        catalog_number: p.catalog_number || '',
+        product_name: p.product_name || '',
+        spec: p.spec || '',
+        unit: p.unit || '个',
+        quantity: 1,
+        list_price: listPrice,
+        discount: discount,
+        unit_price: unitPrice,
+        cost_price: parseFloat(p.dealer_price) || null,
+        remark: '',
+    });
+    renderItems();
+}
+
+function addEmptyRow() {
+    items.push({
+        brand_name: '', brand_id: null,
+        catalog_number: '', product_name: '',
+        spec: '', unit: '个', quantity: 1,
+        list_price: 0, discount: currentDefaultDiscount,
+        unit_price: 0, cost_price: null, remark: '',
+    });
+    renderItems();
+}
+
+// ===== 渲染表格 =====
+function renderItems() {
+    var tbody = document.getElementById('itemsBody');
+    tbody.innerHTML = '';
+
+    items.forEach(function(item, idx) {
+        var subtotal = (item.quantity * item.unit_price).toFixed(2);
+        var isDiscounted = item.discount < 100;
+        var listPriceDisplay = item.list_price > 0
+            ? '¥' + item.list_price.toFixed(2)
+            : '-';
+
+        var tr = document.createElement('tr');
+        tr.className = 'item-row';
+        tr.innerHTML =
+            '<td style="position:relative;">' +
+            '<input type="text" value="' + esc(item.brand_name) +
+            '" placeholder="品牌"' +
+            ' id="brand_' + idx + '"' +
+            ' onchange="items[' + idx + '].brand_name=this.value"' +
+            ' oninput="autoCompleteBrand(' + idx + ', this.value)"' +
+            ' autocomplete="off">' +
+            '<div id="brand_dropdown_' + idx + '" ' +
+            'class="brand-dropdown" style="display:none;"></div>' +
+            '</td>' +
+
+            '<td><input type="text" value="' + esc(item.catalog_number) +
+            '" placeholder="货号"' +
+            ' id="catalog_' + idx + '"' +
+            ' onchange="onCatalogChange(' + idx + ', this.value)"' +
+            ' onkeypress="if(event.key===\'Enter\')onCatalogChange(' + idx + ', this.value)"' +
+            ' autocomplete="off"></td>' +
+
+            '<td><input type="text" value="' + esc(item.product_name) +
+            '" placeholder="产品名称"' +
+            ' onchange="items[' + idx + '].product_name=this.value"></td>' +
+
+            '<td><input type="text" value="' + esc(item.spec) +
+            '" placeholder="规格"' +
+            ' onchange="items[' + idx + '].spec=this.value"></td>' +
+
+            '<td><input type="text" value="' + esc(item.unit) +
+            '" style="width:36px;"' +
+            ' onchange="items[' + idx + '].unit=this.value"></td>' +
+
+            '<td><input type="number" value="' + item.quantity +
+            '" min="0.01" step="1" style="width:50px;"' +
+            ' onchange="updateQty(' + idx + ',this.value)"></td>' +
+
+            // 目录价（只读）
+            '<td style="text-align:right;color:#888;font-size:13px;">' +
+            listPriceDisplay + '</td>' +
+
+            // 折扣（可编辑）
+            '<td class="discount-cell"><input type="number" ' +
+            'value="' + item.discount + '" min="1" max="100" step="0.1"' +
+            ' style="width:55px;' +
+            (isDiscounted ? 'background:#fff3cd;color:#e74c3c;' : '') + '"' +
+            ' onchange="updateItemDiscount(' + idx + ',this.value)"' +
+            ' title="折扣%，100=无折扣，90=九折"></td>' +
+
+            // 单价（可手动覆盖）
+            '<td><input type="number" id="up_' + idx + '"' +
+            ' value="' + item.unit_price.toFixed(2) + '"' +
+            ' min="0" step="0.01" style="width:72px;font-weight:bold;"' +
+            ' onchange="updateUnitPrice(' + idx + ',this.value)"></td>' +
+
+            '<td style="text-align:right;font-weight:bold;color:#27ae60;"' +
+            ' id="st_' + idx + '">¥' + subtotal + '</td>' +
+
+            '<td><button type="button" onclick="removeItem(' + idx + ')"' +
+            ' style="background:#e74c3c;color:white;border:none;' +
+            'border-radius:3px;padding:2px 8px;cursor:pointer;">✕</button>' +
+            '</td>';
+
+        tbody.appendChild(tr);
+    });
+    updateTotal();
+}
+
+// ===== 数量/折扣/单价更新 =====
+function updateQty(idx, val) {
+    items[idx].quantity = parseFloat(val) || 1;
+    refreshRow(idx);
+}
+
+function updateItemDiscount(idx, val) {
+    var discount = parseFloat(val) || 100;
+    items[idx].discount = discount;
+    // 根据折扣重算单价（如果有目录价）
+    if (items[idx].list_price > 0) {
+        items[idx].unit_price = calcPrice(items[idx].list_price, discount);
+        var upEl = document.getElementById('up_' + idx);
+        if (upEl) upEl.value = items[idx].unit_price.toFixed(2);
+    }
+    refreshRow(idx);
+}
+
+function updateUnitPrice(idx, val) {
+    items[idx].unit_price = parseFloat(val) || 0;
+    // 反推折扣（如果有目录价）
+    if (items[idx].list_price > 0 && items[idx].unit_price > 0) {
+        items[idx].discount = Math.round(
+            items[idx].unit_price / items[idx].list_price * 1000
+        ) / 10;
+    }
+    refreshRow(idx);
+}
+
+function refreshRow(idx) {
+    var subtotal = items[idx].quantity * items[idx].unit_price;
+    var stEl = document.getElementById('st_' + idx);
+    if (stEl) stEl.textContent = '¥' + subtotal.toFixed(2);
+    updateTotal();
+}
+
+// ===== 产品行品牌自动完成 =====
+var brandTimers = {};
+
+function autoCompleteBrand(idx, value) {
+    clearTimeout(brandTimers[idx]);
+
+    if (!value || value.length < 1) {
+        hideBrandDropdown(idx);
+        return;
+    }
+
+    brandTimers[idx] = setTimeout(function() {
+        fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(value))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                showBrandDropdown(idx, data.brands, value);
+            });
+    }, 200);
+}
+
+function showBrandDropdown(idx, brands, inputValue) {
+    var dropdown = document.getElementById('brand_dropdown_' + idx);
+    if (!dropdown) return;
+
+    dropdown.innerHTML = '';
+
+    if (!brands.length) {
+        hideBrandDropdown(idx);
+        return;
+    }
+
+    // 添加匹配的品牌
+    brands.forEach(function(brand) {
+        var div = document.createElement('div');
+        div.className = 'brand-dropdown-item';
+        div.innerHTML = '<strong>' + esc(brand.name) + '</strong>' +
+            (brand.name_en ? ' <span style="color:#888;font-size:11px;">' +
+            esc(brand.name_en) + '</span>' : '');
+        div.onclick = function() {
+            selectBrandForRow(idx, brand);
+        };
+        dropdown.appendChild(div);
+    });
+
+    // 添加"其他"选项
+    var otherDiv = document.createElement('div');
+    otherDiv.className = 'brand-dropdown-item other';
+    otherDiv.innerHTML = '➕ 其他（手动输入）';
+    otherDiv.onclick = function() {
+        hideBrandDropdown(idx);
+        document.getElementById('brand_' + idx).focus();
+    };
+    dropdown.appendChild(otherDiv);
+
+    dropdown.style.display = 'block';
+}
+
+function hideBrandDropdown(idx) {
+    var dropdown = document.getElementById('brand_dropdown_' + idx);
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function selectBrandForRow(idx, brand) {
+    items[idx].brand_name = brand.name;
+    items[idx].brand_id = brand.id;
+    var input = document.getElementById('brand_' + idx);
+    if (input) input.value = brand.name;
+    hideBrandDropdown(idx);
+}
+
+// 点击空白处关闭所有品牌下拉
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.brand-dropdown') &&
+        !e.target[id^='brand_']) {
+        document.querySelectorAll('.brand-dropdown').forEach(function(d) {
+            d.style.display = 'none';
+        });
+    }
+});
+
+// ===== 货号变化处理 =====
+function onCatalogChange(idx, catalogNumber) {
+    var item = items[idx];
+    item.catalog_number = catalogNumber;
+
+    // 如果品牌已选择，自动查价
+    if (item.brand_name && catalogNumber.length >= 2) {
+        lookupPriceForRow(idx);
+    }
+}
+
+function lookupPriceForRow(idx) {
+    var item = items[idx];
+    if (!item.brand_name || !item.catalog_number) return;
+
+    // 查找品牌ID
+    fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(item.brand_name))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var brandId = null;
+            if (data.brands && data.brands.length > 0) {
+                // 精确匹配
+                var exact = data.brands.find(function(b) {
+                    return b.name === item.brand_name;
+                });
+                brandId = exact ? exact.id : data.brands[0].id;
+            }
+
+            // 查价
+            var url = '/crm/api/products/lookup/?brand_id=' +
+                encodeURIComponent(brandId || '') +
+                '&catalog_number=' + encodeURIComponent(item.catalog_number);
+            if (currentCustomerId) {
+                url += '&customer_id=' + currentCustomerId;
+            }
+
+            return fetch(url);
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.product) {
+                var p = data.product;
+                item.product_name = p.name || '';
+                item.spec = p.spec || '';
+                item.unit = p.unit || '个';
+                item.list_price = parseFloat(p.list_price) || 0;
+                item.discount = parseFloat(p.discount) || currentDefaultDiscount;
+                item.unit_price = parseFloat(p.discounted_price) || item.list_price;
+                item.cost_price = parseFloat(p.dealer_price) || null;
+                item.brand_id = data.brand_id || null;
+
+                renderItems();
+            }
+        })
+        .catch(function(err) {
+            console.error('查价失败:', err);
+        });
+}
+
+// ===== 全局折扣应用 =====
+function applyGlobalDiscount() {
+    var discount = parseFloat(
+        document.getElementById('globalDiscount').value
+    ) || 100;
+    currentDefaultDiscount = discount;
+
+    items.forEach(function(item, idx) {
+        item.discount = discount;
+        if (item.list_price > 0) {
+            item.unit_price = calcPrice(item.list_price, discount);
+        }
+    });
+    renderItems();
+}
+
+function updateAllDiscounts(discount) {
+    if (items.length === 0) {
+        currentDefaultDiscount = discount;
+        return;
+    }
+    currentDefaultDiscount = discount;
+    items.forEach(function(item) {
+        item.discount = discount;
+        if (item.list_price > 0) {
+            item.unit_price = calcPrice(item.list_price, discount);
+        }
+    });
+    renderItems();
+}
+
+function removeItem(idx) {
+    items.splice(idx, 1);
+    renderItems();
+}
+
+// ===== 合计 =====
+function updateTotal() {
+    var itemsTotal = items.reduce(function(sum, item) {
+        return sum + item.quantity * item.unit_price;
+    }, 0);
+    var shipping = parseFloat(
+        document.getElementById('shipping_fee').value || 0
+    );
+    var disc = parseFloat(
+        document.getElementById('discount_amount').value || 0
+    );
+    document.getElementById('itemsTotal').textContent =
+        '¥' + itemsTotal.toFixed(2);
+    document.getElementById('grandTotal').textContent =
+        '¥' + (itemsTotal + shipping - disc).toFixed(2);
+}
+
+// ===== 发票字段显示 =====
+function toggleInvoiceFields() {
+    var type = document.getElementById('invoiceType').value;
+    document.getElementById('invoiceFields').style.display =
+        type === 'none' ? 'none' : 'block';
+}
+
+// ===== 品牌自动完成 =====
+var brandSearchTimer = null;
+
+document.getElementById('quickBrand').addEventListener('input', function() {
+    clearTimeout(brandSearchTimer);
+    var q = this.value.trim();
+    selectedBrandId = null;
+    selectedBrandName = null;
+
+    if (q.length < 1) {
+        document.getElementById('brandDropdown').style.display = 'none';
+        return;
+    }
+
+    brandSearchTimer = setTimeout(function() { searchBrands(q); }, 300);
+});
+
+document.getElementById('quickBrand').addEventListener('focus', function() {
+    var q = this.value.trim();
+    if (q.length >= 1) {
+        searchBrands(q);
+    }
+});
+
+function searchBrands(q) {
+    fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var dropdown = document.getElementById('brandDropdown');
+            dropdown.innerHTML = '';
+
+            if (!data.brands.length && !data.has_other) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            // 添加匹配的品牌
+            data.brands.forEach(function(brand) {
+                var div = document.createElement('div');
+                div.style.cssText = 'padding:8px 12px;cursor:pointer;' +
+                    'border-bottom:1px solid #f0f0f0;';
+                div.innerHTML = '<strong>' + esc(brand.name) + '</strong>' +
+                    (brand.name_en ? ' <span style="color:#888;font-size:12px;">' +
+                    esc(brand.name_en) + '</span>' : '');
+
+                div.addEventListener('mouseenter', function() {
+                    this.style.background = '#f0f7ff';
+                });
+                div.addEventListener('mouseleave', function() {
+                    this.style.background = '';
+                });
+                div.addEventListener('click', function() {
+                    selectBrand(brand);
+                });
+                dropdown.appendChild(div);
+            });
+
+            // 添加"其他"选项
+            if (data.has_other) {
+                var otherDiv = document.createElement('div');
+                otherDiv.style.cssText = 'padding:8px 12px;cursor:pointer;' +
+                    'background:#f8f9fa;color:#6c757d;font-style:italic;';
+                otherDiv.innerHTML = '➕ 其他（手动输入品牌）';
+                otherDiv.addEventListener('mouseenter', function() {
+                    this.style.background = '#e9ecef';
+                });
+                otherDiv.addEventListener('mouseleave', function() {
+                    this.style.background = '#f8f9fa';
+                });
+                otherDiv.addEventListener('click', function() {
+                    document.getElementById('quickBrand').value = '';
+                    document.getElementById('quickBrand').focus();
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(otherDiv);
+            }
+
+            dropdown.style.display = 'block';
+        });
+}
+
+function selectBrand(brand) {
+    document.getElementById('quickBrand').value = brand.name;
+    selectedBrandId = brand.id;
+    selectedBrandName = brand.name;
+    document.getElementById('brandDropdown').style.display = 'none';
+    // 自动聚焦到货号输入框
+    document.getElementById('quickCatalog').focus();
+}
+
+// 点击空白处关闭品牌下拉
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#quickBrand') &&
+        !e.target.closest('#brandDropdown')) {
+        document.getElementById('brandDropdown').style.display = 'none';
+    }
+});
+
+// ===== 快速查价 =====
+document.getElementById('quickCatalog').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        lookupPrice();
+    }
+});
+
+function lookupPrice() {
+    var brandName = document.getElementById('quickBrand').value.trim();
+    var catalogNumber = document.getElementById('quickCatalog').value.trim();
+    var resultDiv = document.getElementById('lookupResult');
+
+    if (!brandName) {
+        showLookupResult('warning', '请先输入品牌名称');
+        return;
+    }
+
+    if (!catalogNumber) {
+        showLookupResult('warning', '请输入货号');
+        return;
+    }
+
+    // 显示加载状态
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.border = '1px solid #ffc107';
+    resultDiv.innerHTML = '⏳ 正在查询价格...';
+
+    // 构建请求URL
+    var url = '/crm/api/products/lookup/?brand_id=' +
+        encodeURIComponent(selectedBrandId || '') +
+        '&catalog_number=' + encodeURIComponent(catalogNumber);
+    if (currentCustomerId) {
+        url += '&customer_id=' + currentCustomerId;
+    }
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                showLookupResult('danger', '查询失败：' + (data.error || '未知错误'));
+                return;
+            }
+
+            // 保存查价结果
+            quickLookupData = data;
+
+            if (data.has_local && data.product) {
+                // 本地有产品
+                var p = data.product;
+                var priceHtml = p.list_price
+                    ? '¥' + parseFloat(p.list_price).toFixed(2)
+                    : '暂无';
+                var discountHtml = '';
+                if (parseFloat(p.discount) < 100 && p.list_price) {
+                    discountHtml = ' <span style="color:#f39c12;">' +
+                        p.discount + '%</span> → ' +
+                        '<span style="color:#e74c3c;font-weight:bold;">¥' +
+                        parseFloat(p.discounted_price).toFixed(2) + '</span>';
+                }
+
+                resultDiv.style.background = '#d4edda';
+                resultDiv.style.border = '1px solid #c3e6cb';
+                resultDiv.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;' +
+                    'align-items:center;flex-wrap:wrap;gap:10px;">' +
+                    '<div>' +
+                    '<strong style="color:#155724;">✓ 找到本地产品</strong><br>' +
+                    '<span style="font-size:14px;">' +
+                    esc(data.brand_name) + ' | ' +
+                    esc(data.catalog_number) + '</span><br>' +
+                    '<span style="font-size:13px;color:#666;">' +
+                    esc(p.name) + ' ' + esc(p.spec) + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                    '<div style="font-size:14px;">目录价：' + priceHtml + '</div>' +
+                    discountHtml +
+                    '</div>' +
+                    '</div>';
+
+            } else if (data.website_price) {
+                // 仅有官网价格
+                resultDiv.style.background = '#d1ecf1';
+                resultDiv.style.border = '1px solid #bee5eb';
+                resultDiv.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;' +
+                    'align-items:center;flex-wrap:wrap;gap:10px;">' +
+                    '<div>' +
+                    '<strong style="color:#0c5460;">🌐 官网价格</strong><br>' +
+                    '<span style="font-size:14px;">' +
+                    esc(data.brand_name) + ' | ' +
+                    esc(data.catalog_number) + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                    '<div style="font-size:18px;font-weight:bold;color:#0c5460;">' +
+                    '¥' + parseFloat(data.website_price).toFixed(2) +
+                    '</div>' +
+                    '<a href="' + esc(data.website_url) + '" target="_blank" ' +
+                    'style="font-size:12px;">查看官网 →</a>' +
+                    '</div>' +
+                    '</div>';
+
+            } else {
+                // 都未找到
+                var urlHtml = data.website_url
+                    ? '<a href="' + esc(data.website_url) + '" target="_blank" ' +
+                      'style="color:#856404;">点击访问官网查询 →</a>'
+                    : '该品牌暂无官网搜索模板';
+
+                resultDiv.style.background = '#fff3cd';
+                resultDiv.style.border = '1px solid #ffc107';
+                resultDiv.innerHTML =
+                    '<strong style="color:#856404;">⚠️ 未找到价格信息</strong><br>' +
+                    '<span style="font-size:13px;">' + urlHtml + '</span>';
+            }
+        })
+        .catch(function(err) {
+            showLookupResult('danger', '查询出错：' + err.message);
+        });
+}
+
+function showLookupResult(type, message) {
+    var resultDiv = document.getElementById('lookupResult');
+    resultDiv.style.display = 'block';
+
+    var styles = {
+        'warning': { bg: '#fff3cd', border: '#ffc107', color: '#856404' },
+        'danger': { bg: '#f8d7da', border: '#f5c6cb', color: '#721c24' },
+        'success': { bg: '#d4edda', border: '#c3e6cb', color: '#155724' }
+    };
+    var s = styles[type] || styles.warning;
+
+    resultDiv.style.background = s.bg;
+    resultDiv.style.border = '1px solid ' + s.border;
+    resultDiv.style.color = s.color;
+    resultDiv.innerHTML = message;
+}
+
+function addFromQuickLookup() {
+    if (!quickLookupData || !quickLookupData.success) {
+        showLookupResult('warning', '请先查询价格');
+        return;
+    }
+
+    var data = quickLookupData;
+    var p = data.product || {};
+    var brandName = data.brand_name ||
+        document.getElementById('quickBrand').value.trim();
+    var catalogNumber = data.catalog_number ||
+        document.getElementById('quickCatalog').value.trim();
+
+    // 计算价格
+    var listPrice = parseFloat(p.list_price) || 0;
+    var discount = parseFloat(p.discount) || currentDefaultDiscount;
+    var unitPrice = parseFloat(p.discounted_price) || listPrice;
+
+    // 添加到明细行
+    items.push({
+        brand_name: brandName,
+        brand_id: data.brand_id || selectedBrandId,
+        catalog_number: catalogNumber,
+        product_name: p.name || '',
+        spec: p.spec || '',
+        unit: p.unit || '个',
+        quantity: 1,
+        list_price: listPrice,
+        discount: discount,
+        unit_price: unitPrice,
+        cost_price: parseFloat(p.dealer_price) || null,
+        remark: '',
+    });
+
+    renderItems();
+
+    // 清空查价区域
+    document.getElementById('quickBrand').value = '';
+    document.getElementById('quickCatalog').value = '';
+    document.getElementById('lookupResult').style.display = 'none';
+    quickLookupData = null;
+    selectedBrandId = null;
+    selectedBrandName = null;
+
+    showLookupResult('success', '✓ 已添加到产品明细');
+}
+
+// ===== 提交 =====
+function prepareSubmit() {
+    if (!document.getElementById('customerSelect').value) {
+        alert('请选择客户！');
+        return false;
+    }
+    if (items.length === 0) {
+        alert('请至少添加一个产品！');
+        return false;
+    }
+    document.getElementById('items_json').value = JSON.stringify(items);
+    return true;
+}
+
+// 初始化
+toggleInvoiceFields();
+</script>
+{% endblock %}
