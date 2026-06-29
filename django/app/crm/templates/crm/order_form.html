@@ -124,6 +124,59 @@
                     </div>
                 </div>
 
+                <!-- 快速查价（品牌+货号） -->
+                <div style="padding:10px 16px;background:#fff3cd;
+                            border-bottom:1px solid #ffc107;
+                            position:relative;">
+                    <div style="display:flex;gap:8px;align-items:center;
+                                flex-wrap:wrap;">
+                        <span style="color:#856404;white-space:nowrap;
+                                     font-size:14px;font-weight:bold;">
+                            ⚡ 快速查价：
+                        </span>
+                        <div style="position:relative;flex:1;min-width:120px;">
+                            <input type="text" id="quickBrand"
+                                   class="form-control"
+                                   placeholder="输入或选择品牌..."
+                                   autocomplete="off"
+                                   style="padding-right:30px;">
+                            <div id="brandDropdown"
+                                 style="display:none;position:absolute;
+                                        left:0;right:0;top:100%;
+                                        background:white;border:1px solid #ddd;
+                                        border-radius:0 0 4px 4px;
+                                        box-shadow:0 4px 12px rgba(0,0,0,0.15);
+                                        z-index:1001;max-height:200px;overflow-y:auto;">
+                            </div>
+                            <span style="position:absolute;right:8px;top:50%;
+                                        transform:translateY(-50%);
+                                        color:#999;pointer-events:none;">▼</span>
+                        </div>
+                        <input type="text" id="quickCatalog"
+                               class="form-control"
+                               placeholder="输入货号..."
+                               style="width:150px;"
+                               autocomplete="off">
+                        <button type="button" id="btnLookupPrice"
+                                class="btn btn-warning"
+                                style="white-space:nowrap;"
+                                onclick="lookupPrice()">
+                            🔍 查价
+                        </button>
+                        <button type="button"
+                                class="btn btn-success"
+                                style="white-space:nowrap;"
+                                onclick="addFromQuickLookup()">
+                            ＋ 添加到明细
+                        </button>
+                    </div>
+                    <div id="lookupResult"
+                         style="display:none;margin-top:8px;
+                                padding:8px 12px;border-radius:4px;
+                                background:#d4edda;border:1px solid #c3e6cb;">
+                    </div>
+                </div>
+
                 <!-- 明细表格 -->
                 <div class="table-responsive">
                     <table>
@@ -296,6 +349,35 @@
 .item-row input:focus { border-color: #3498db; outline: none; }
 .price-discounted { color: #e74c3c; font-weight: bold; }
 .discount-cell input { background: #fff8e1; }
+
+/* 品牌下拉样式 */
+.brand-dropdown {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 100%;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.brand-dropdown-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+.brand-dropdown-item:hover {
+    background: #f0f7ff;
+}
+.brand-dropdown-item.other {
+    background: #f8f9fa;
+    color: #6c757d;
+    font-style: italic;
+}
 </style>
 
 <script>
@@ -305,6 +387,11 @@ var currentCustomerId = '';
 var currentCustomerType = '';
 var currentLevel = '';
 var currentDefaultDiscount = 100;
+
+// 快速查价相关
+var quickLookupData = null;  // 存储最近查价结果
+var selectedBrandId = null;
+var selectedBrandName = null;
 
 // ===== 工具函数 =====
 function esc(str) {
@@ -516,13 +603,23 @@ function renderItems() {
         var tr = document.createElement('tr');
         tr.className = 'item-row';
         tr.innerHTML =
-            '<td><input type="text" value="' + esc(item.brand_name) +
+            '<td style="position:relative;">' +
+            '<input type="text" value="' + esc(item.brand_name) +
             '" placeholder="品牌"' +
-            ' onchange="items[' + idx + '].brand_name=this.value"></td>' +
+            ' id="brand_' + idx + '"' +
+            ' onchange="items[' + idx + '].brand_name=this.value"' +
+            ' oninput="autoCompleteBrand(' + idx + ', this.value)"' +
+            ' autocomplete="off">' +
+            '<div id="brand_dropdown_' + idx + '" ' +
+            'class="brand-dropdown" style="display:none;"></div>' +
+            '</td>' +
 
             '<td><input type="text" value="' + esc(item.catalog_number) +
             '" placeholder="货号"' +
-            ' onchange="items[' + idx + '].catalog_number=this.value"></td>' +
+            ' id="catalog_' + idx + '"' +
+            ' onchange="onCatalogChange(' + idx + ', this.value)"' +
+            ' onkeypress="if(event.key===\'Enter\')onCatalogChange(' + idx + ', this.value)"' +
+            ' autocomplete="off"></td>' +
 
             '<td><input type="text" value="' + esc(item.product_name) +
             '" placeholder="产品名称"' +
@@ -607,6 +704,145 @@ function refreshRow(idx) {
     updateTotal();
 }
 
+// ===== 产品行品牌自动完成 =====
+var brandTimers = {};
+
+function autoCompleteBrand(idx, value) {
+    clearTimeout(brandTimers[idx]);
+
+    if (!value || value.length < 1) {
+        hideBrandDropdown(idx);
+        return;
+    }
+
+    brandTimers[idx] = setTimeout(function() {
+        fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(value))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                showBrandDropdown(idx, data.brands, value);
+            });
+    }, 200);
+}
+
+function showBrandDropdown(idx, brands, inputValue) {
+    var dropdown = document.getElementById('brand_dropdown_' + idx);
+    if (!dropdown) return;
+
+    dropdown.innerHTML = '';
+
+    if (!brands.length) {
+        hideBrandDropdown(idx);
+        return;
+    }
+
+    // 添加匹配的品牌
+    brands.forEach(function(brand) {
+        var div = document.createElement('div');
+        div.className = 'brand-dropdown-item';
+        div.innerHTML = '<strong>' + esc(brand.name) + '</strong>' +
+            (brand.name_en ? ' <span style="color:#888;font-size:11px;">' +
+            esc(brand.name_en) + '</span>' : '');
+        div.onclick = function() {
+            selectBrandForRow(idx, brand);
+        };
+        dropdown.appendChild(div);
+    });
+
+    // 添加"其他"选项
+    var otherDiv = document.createElement('div');
+    otherDiv.className = 'brand-dropdown-item other';
+    otherDiv.innerHTML = '➕ 其他（手动输入）';
+    otherDiv.onclick = function() {
+        hideBrandDropdown(idx);
+        document.getElementById('brand_' + idx).focus();
+    };
+    dropdown.appendChild(otherDiv);
+
+    dropdown.style.display = 'block';
+}
+
+function hideBrandDropdown(idx) {
+    var dropdown = document.getElementById('brand_dropdown_' + idx);
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function selectBrandForRow(idx, brand) {
+    items[idx].brand_name = brand.name;
+    items[idx].brand_id = brand.id;
+    var input = document.getElementById('brand_' + idx);
+    if (input) input.value = brand.name;
+    hideBrandDropdown(idx);
+}
+
+// 点击空白处关闭所有品牌下拉
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.brand-dropdown') &&
+        !e.target[id^='brand_']) {
+        document.querySelectorAll('.brand-dropdown').forEach(function(d) {
+            d.style.display = 'none';
+        });
+    }
+});
+
+// ===== 货号变化处理 =====
+function onCatalogChange(idx, catalogNumber) {
+    var item = items[idx];
+    item.catalog_number = catalogNumber;
+
+    // 如果品牌已选择，自动查价
+    if (item.brand_name && catalogNumber.length >= 2) {
+        lookupPriceForRow(idx);
+    }
+}
+
+function lookupPriceForRow(idx) {
+    var item = items[idx];
+    if (!item.brand_name || !item.catalog_number) return;
+
+    // 查找品牌ID
+    fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(item.brand_name))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var brandId = null;
+            if (data.brands && data.brands.length > 0) {
+                // 精确匹配
+                var exact = data.brands.find(function(b) {
+                    return b.name === item.brand_name;
+                });
+                brandId = exact ? exact.id : data.brands[0].id;
+            }
+
+            // 查价
+            var url = '/crm/api/products/lookup/?brand_id=' +
+                encodeURIComponent(brandId || '') +
+                '&catalog_number=' + encodeURIComponent(item.catalog_number);
+            if (currentCustomerId) {
+                url += '&customer_id=' + currentCustomerId;
+            }
+
+            return fetch(url);
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.product) {
+                var p = data.product;
+                item.product_name = p.name || '';
+                item.spec = p.spec || '';
+                item.unit = p.unit || '个';
+                item.list_price = parseFloat(p.list_price) || 0;
+                item.discount = parseFloat(p.discount) || currentDefaultDiscount;
+                item.unit_price = parseFloat(p.discounted_price) || item.list_price;
+                item.cost_price = parseFloat(p.dealer_price) || null;
+                item.brand_id = data.brand_id || null;
+
+                renderItems();
+            }
+        })
+        .catch(function(err) {
+            console.error('查价失败:', err);
+        });
+}
+
 // ===== 全局折扣应用 =====
 function applyGlobalDiscount() {
     var discount = parseFloat(
@@ -665,6 +901,289 @@ function toggleInvoiceFields() {
     var type = document.getElementById('invoiceType').value;
     document.getElementById('invoiceFields').style.display =
         type === 'none' ? 'none' : 'block';
+}
+
+// ===== 品牌自动完成 =====
+var brandSearchTimer = null;
+
+document.getElementById('quickBrand').addEventListener('input', function() {
+    clearTimeout(brandSearchTimer);
+    var q = this.value.trim();
+    selectedBrandId = null;
+    selectedBrandName = null;
+
+    if (q.length < 1) {
+        document.getElementById('brandDropdown').style.display = 'none';
+        return;
+    }
+
+    brandSearchTimer = setTimeout(function() { searchBrands(q); }, 300);
+});
+
+document.getElementById('quickBrand').addEventListener('focus', function() {
+    var q = this.value.trim();
+    if (q.length >= 1) {
+        searchBrands(q);
+    }
+});
+
+function searchBrands(q) {
+    fetch('/crm/api/brands/autocomplete/?q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var dropdown = document.getElementById('brandDropdown');
+            dropdown.innerHTML = '';
+
+            if (!data.brands.length && !data.has_other) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            // 添加匹配的品牌
+            data.brands.forEach(function(brand) {
+                var div = document.createElement('div');
+                div.style.cssText = 'padding:8px 12px;cursor:pointer;' +
+                    'border-bottom:1px solid #f0f0f0;';
+                div.innerHTML = '<strong>' + esc(brand.name) + '</strong>' +
+                    (brand.name_en ? ' <span style="color:#888;font-size:12px;">' +
+                    esc(brand.name_en) + '</span>' : '');
+
+                div.addEventListener('mouseenter', function() {
+                    this.style.background = '#f0f7ff';
+                });
+                div.addEventListener('mouseleave', function() {
+                    this.style.background = '';
+                });
+                div.addEventListener('click', function() {
+                    selectBrand(brand);
+                });
+                dropdown.appendChild(div);
+            });
+
+            // 添加"其他"选项
+            if (data.has_other) {
+                var otherDiv = document.createElement('div');
+                otherDiv.style.cssText = 'padding:8px 12px;cursor:pointer;' +
+                    'background:#f8f9fa;color:#6c757d;font-style:italic;';
+                otherDiv.innerHTML = '➕ 其他（手动输入品牌）';
+                otherDiv.addEventListener('mouseenter', function() {
+                    this.style.background = '#e9ecef';
+                });
+                otherDiv.addEventListener('mouseleave', function() {
+                    this.style.background = '#f8f9fa';
+                });
+                otherDiv.addEventListener('click', function() {
+                    document.getElementById('quickBrand').value = '';
+                    document.getElementById('quickBrand').focus();
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(otherDiv);
+            }
+
+            dropdown.style.display = 'block';
+        });
+}
+
+function selectBrand(brand) {
+    document.getElementById('quickBrand').value = brand.name;
+    selectedBrandId = brand.id;
+    selectedBrandName = brand.name;
+    document.getElementById('brandDropdown').style.display = 'none';
+    // 自动聚焦到货号输入框
+    document.getElementById('quickCatalog').focus();
+}
+
+// 点击空白处关闭品牌下拉
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#quickBrand') &&
+        !e.target.closest('#brandDropdown')) {
+        document.getElementById('brandDropdown').style.display = 'none';
+    }
+});
+
+// ===== 快速查价 =====
+document.getElementById('quickCatalog').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        lookupPrice();
+    }
+});
+
+function lookupPrice() {
+    var brandName = document.getElementById('quickBrand').value.trim();
+    var catalogNumber = document.getElementById('quickCatalog').value.trim();
+    var resultDiv = document.getElementById('lookupResult');
+
+    if (!brandName) {
+        showLookupResult('warning', '请先输入品牌名称');
+        return;
+    }
+
+    if (!catalogNumber) {
+        showLookupResult('warning', '请输入货号');
+        return;
+    }
+
+    // 显示加载状态
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.border = '1px solid #ffc107';
+    resultDiv.innerHTML = '⏳ 正在查询价格...';
+
+    // 构建请求URL
+    var url = '/crm/api/products/lookup/?brand_id=' +
+        encodeURIComponent(selectedBrandId || '') +
+        '&catalog_number=' + encodeURIComponent(catalogNumber);
+    if (currentCustomerId) {
+        url += '&customer_id=' + currentCustomerId;
+    }
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                showLookupResult('danger', '查询失败：' + (data.error || '未知错误'));
+                return;
+            }
+
+            // 保存查价结果
+            quickLookupData = data;
+
+            if (data.has_local && data.product) {
+                // 本地有产品
+                var p = data.product;
+                var priceHtml = p.list_price
+                    ? '¥' + parseFloat(p.list_price).toFixed(2)
+                    : '暂无';
+                var discountHtml = '';
+                if (parseFloat(p.discount) < 100 && p.list_price) {
+                    discountHtml = ' <span style="color:#f39c12;">' +
+                        p.discount + '%</span> → ' +
+                        '<span style="color:#e74c3c;font-weight:bold;">¥' +
+                        parseFloat(p.discounted_price).toFixed(2) + '</span>';
+                }
+
+                resultDiv.style.background = '#d4edda';
+                resultDiv.style.border = '1px solid #c3e6cb';
+                resultDiv.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;' +
+                    'align-items:center;flex-wrap:wrap;gap:10px;">' +
+                    '<div>' +
+                    '<strong style="color:#155724;">✓ 找到本地产品</strong><br>' +
+                    '<span style="font-size:14px;">' +
+                    esc(data.brand_name) + ' | ' +
+                    esc(data.catalog_number) + '</span><br>' +
+                    '<span style="font-size:13px;color:#666;">' +
+                    esc(p.name) + ' ' + esc(p.spec) + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                    '<div style="font-size:14px;">目录价：' + priceHtml + '</div>' +
+                    discountHtml +
+                    '</div>' +
+                    '</div>';
+
+            } else if (data.website_price) {
+                // 仅有官网价格
+                resultDiv.style.background = '#d1ecf1';
+                resultDiv.style.border = '1px solid #bee5eb';
+                resultDiv.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;' +
+                    'align-items:center;flex-wrap:wrap;gap:10px;">' +
+                    '<div>' +
+                    '<strong style="color:#0c5460;">🌐 官网价格</strong><br>' +
+                    '<span style="font-size:14px;">' +
+                    esc(data.brand_name) + ' | ' +
+                    esc(data.catalog_number) + '</span>' +
+                    '</div>' +
+                    '<div style="text-align:right;">' +
+                    '<div style="font-size:18px;font-weight:bold;color:#0c5460;">' +
+                    '¥' + parseFloat(data.website_price).toFixed(2) +
+                    '</div>' +
+                    '<a href="' + esc(data.website_url) + '" target="_blank" ' +
+                    'style="font-size:12px;">查看官网 →</a>' +
+                    '</div>' +
+                    '</div>';
+
+            } else {
+                // 都未找到
+                var urlHtml = data.website_url
+                    ? '<a href="' + esc(data.website_url) + '" target="_blank" ' +
+                      'style="color:#856404;">点击访问官网查询 →</a>'
+                    : '该品牌暂无官网搜索模板';
+
+                resultDiv.style.background = '#fff3cd';
+                resultDiv.style.border = '1px solid #ffc107';
+                resultDiv.innerHTML =
+                    '<strong style="color:#856404;">⚠️ 未找到价格信息</strong><br>' +
+                    '<span style="font-size:13px;">' + urlHtml + '</span>';
+            }
+        })
+        .catch(function(err) {
+            showLookupResult('danger', '查询出错：' + err.message);
+        });
+}
+
+function showLookupResult(type, message) {
+    var resultDiv = document.getElementById('lookupResult');
+    resultDiv.style.display = 'block';
+
+    var styles = {
+        'warning': { bg: '#fff3cd', border: '#ffc107', color: '#856404' },
+        'danger': { bg: '#f8d7da', border: '#f5c6cb', color: '#721c24' },
+        'success': { bg: '#d4edda', border: '#c3e6cb', color: '#155724' }
+    };
+    var s = styles[type] || styles.warning;
+
+    resultDiv.style.background = s.bg;
+    resultDiv.style.border = '1px solid ' + s.border;
+    resultDiv.style.color = s.color;
+    resultDiv.innerHTML = message;
+}
+
+function addFromQuickLookup() {
+    if (!quickLookupData || !quickLookupData.success) {
+        showLookupResult('warning', '请先查询价格');
+        return;
+    }
+
+    var data = quickLookupData;
+    var p = data.product || {};
+    var brandName = data.brand_name ||
+        document.getElementById('quickBrand').value.trim();
+    var catalogNumber = data.catalog_number ||
+        document.getElementById('quickCatalog').value.trim();
+
+    // 计算价格
+    var listPrice = parseFloat(p.list_price) || 0;
+    var discount = parseFloat(p.discount) || currentDefaultDiscount;
+    var unitPrice = parseFloat(p.discounted_price) || listPrice;
+
+    // 添加到明细行
+    items.push({
+        brand_name: brandName,
+        brand_id: data.brand_id || selectedBrandId,
+        catalog_number: catalogNumber,
+        product_name: p.name || '',
+        spec: p.spec || '',
+        unit: p.unit || '个',
+        quantity: 1,
+        list_price: listPrice,
+        discount: discount,
+        unit_price: unitPrice,
+        cost_price: parseFloat(p.dealer_price) || null,
+        remark: '',
+    });
+
+    renderItems();
+
+    // 清空查价区域
+    document.getElementById('quickBrand').value = '';
+    document.getElementById('quickCatalog').value = '';
+    document.getElementById('lookupResult').style.display = 'none';
+    quickLookupData = null;
+    selectedBrandId = null;
+    selectedBrandName = null;
+
+    showLookupResult('success', '✓ 已添加到产品明细');
 }
 
 // ===== 提交 =====

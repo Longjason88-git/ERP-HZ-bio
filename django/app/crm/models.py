@@ -412,6 +412,14 @@ class Brand(models.Model):
     name = models.CharField('品牌名称', max_length=100, unique=True)
     name_en = models.CharField('英文名', max_length=100, blank=True)
     country = models.CharField('产地', max_length=50, blank=True)
+    website_url = models.URLField(
+        '官网首页', max_length=500, blank=True,
+        help_text='品牌官方网站首页地址'
+    )
+    search_url_template = models.CharField(
+        '搜索URL模板', max_length=500, blank=True,
+        help_text='用 {catalog_number} 代表货号，如：https://example.com/search?q={catalog_number}'
+    )
     remark = models.TextField('备注', blank=True)
 
     class Meta:

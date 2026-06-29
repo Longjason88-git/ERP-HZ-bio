@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from django.db import transaction
 
 from .models import Customer, FollowUp, Order, OrderItem, Product, Payment, Brand
+from .services.price_lookup import lookup_product, lookup_local_products, product_to_dict
 
 
 # ==================== 登录/登出 ====================
@@ -1110,4 +1111,113 @@ def customer_info_api(request, pk):
         'level': customer.level,
         'discount_text': customer.get_discount_display_text(),
     }
+    return JsonResponse(data)
+
+
+@login_required(login_url='/crm/login/')
+def brand_autocomplete_api(request):
+    """
+    品牌名称自动完成API
+    返回匹配的品牌列表，支持中英文名称搜索
+    """
+    q = request.GET.get('q', '').strip()
+
+    if len(q) < 1:
+        return JsonResponse({'brands': []})
+
+    brands = Brand.objects.filter(
+        Q(name__icontains=q) |
+        Q(name_en__icontains=q)
+    ).order_by('name')[:20]
+
+    data = []
+    for brand in brands:
+        data.append({
+            'id': brand.id,
+            'name': brand.name,
+            'name_en': brand.name_en,
+            'country': brand.country,
+            'display': f"{brand.name} ({brand.name_en})" if brand.name_en else brand.name,
+            'has_template': bool(brand.search_url_template),
+        })
+
+    return JsonResponse({'brands': data, 'has_other': True})
+
+
+@login_required(login_url='/crm/login/')
+def product_lookup_api(request):
+    """
+    产品查价API
+    根据品牌ID + 货号查询产品，结合本地库和官网价格
+    """
+    from .services.price_lookup import lookup_product
+
+    brand_id = request.GET.get('brand_id', '')
+    catalog_number = request.GET.get('catalog_number', '').strip()
+    customer_id = request.GET.get('customer_id', '')
+
+    if not catalog_number:
+        return JsonResponse({
+            'success': False,
+            'error': '请输入货号',
+        })
+
+    # 获取客户对象（用于计算折扣）
+    customer = None
+    if customer_id:
+        try:
+            customer = Customer.objects.get(pk=customer_id)
+        except Customer.DoesNotExist:
+            pass
+
+    # 调用价格查询服务
+    result = lookup_product(
+        brand_id=brand_id if brand_id else None,
+        catalog_number=catalog_number,
+        customer=customer,
+    )
+
+    # 构建响应
+    data = {
+        'success': True,
+        'catalog_number': result['catalog_number'],
+        'brand_name': result['brand_name'],
+        'brand_id': result['brand_id'],
+        'local_products': result['local_products'],
+        'has_local': result['has_local'],
+        'website_url': result['website_url'],
+        'website_price': result['website_price'],
+        'price_source': result['price_source'],
+    }
+
+    # 如果有本地产品，返回最佳匹配
+    if result['local_products']:
+        best = result['local_products'][0]
+        data['product'] = {
+            'id': best['id'],
+            'name': best['product_name'],
+            'name_en': best.get('name_en', ''),
+            'spec': best['spec'],
+            'unit': best['unit'],
+            'list_price': best['list_price'],
+            'terminal_price': best['terminal_price'],
+            'dealer_price': best['dealer_price'],
+            'discount': best['discount'],
+            'discounted_price': best['discounted_price'],
+        }
+    elif result['website_price']:
+        # 仅有官网价格
+        data['product'] = {
+            'id': None,
+            'name': '',
+            'name_en': '',
+            'spec': '',
+            'unit': '个',
+            'list_price': result['website_price'],
+            'terminal_price': result['website_price'],
+            'dealer_price': '',
+            'discount': '100',
+            'discounted_price': result['website_price'],
+        }
+
     return JsonResponse(data)

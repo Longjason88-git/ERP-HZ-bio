@@ -41,4 +41,8 @@ urlpatterns = [
          views.product_search_api, name='product_search_api'),
     path('api/customers/<int:pk>/info/',
          views.customer_info_api, name='customer_info_api'),
+    path('api/brands/autocomplete/',
+         views.brand_autocomplete_api, name='brand_autocomplete_api'),
+    path('api/products/lookup/',
+         views.product_lookup_api, name='product_lookup_api'),
 ]
