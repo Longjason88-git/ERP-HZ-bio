@@ -129,9 +129,12 @@ STATIC_ROOT = '/app/staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 信任的来源（解决CSRF问题）
+# 生产环境请修改为实际域名或IP
 CSRF_TRUSTED_ORIGINS = [
-    'http://121.196.201.9',
-    'http://121.196.201.9:8080',
+    'http://localhost',
+    'http://localhost:8080',
+    'http://127.0.0.1',
+    'http://127.0.0.1:8080',
 ]
 
 # 登录相关配置

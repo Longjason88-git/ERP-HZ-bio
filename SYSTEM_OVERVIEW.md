@@ -32,27 +32,32 @@
 ---
 
 ## 3. 目录结构
-/home/erp/
-├── docker-compose.yml # 容器编排
-├── .env # 环境变量（数据库密码等）
+```
+项目根目录/
+├── docker-compose.yml    # 容器编排
+├── .env                  # 环境变量（数据库密码等）
+├── start.sh              # Linux/Mac启动脚本
+├── start.bat             # Windows启动脚本
 ├── nginx/
-│ └── default.conf # Nginx配置
-└── django/
-├── Dockerfile # Python镜像构建
-├── requirements.txt # Python依赖
-└── app/ # Django项目根目录
-├── manage.py # Django管理入口
-├── config/ # 项目配置
-│ ├── settings.py # Django设置
-│ ├── urls.py # 根路由
-│ ├── wsgi.py
-│ └── asgi.py
-└── crm/ # 核心应用
-├── models.py # 数据模型（重要）
-├── views.py # 视图函数（重要）
-├── urls.py # 路由配置
-├── admin.py # 后台管理
-└── templates/crm/ # HTML模板
+│   └── default.conf      # Nginx配置
+├── django/
+│   ├── Dockerfile        # Python镜像构建
+│   ├── requirements.txt  # Python依赖
+│   └── app/              # Django项目根目录
+│       ├── manage.py     # Django管理入口
+│       ├── config/       # 项目配置
+│       │   ├── settings.py
+│       │   ├── urls.py
+│       │   ├── wsgi.py
+│       │   └── asgi.py
+│       └── crm/          # 核心应用
+│           ├── models.py     # 数据模型（重要）
+│           ├── views.py      # 视图函数（重要）
+│           ├── urls.py       # 路由配置
+│           ├── admin.py      # 后台管理
+│           └── templates/crm/ # HTML模板
+└── static/               # 静态文件目录
+```
 
 
 ---
@@ -215,7 +220,7 @@ DiscountLevel (折扣等级) —— 独立配置表
 ### 常用运维命令：
 ```bash
 # 查看容器状态（新版本docker）
-cd /home/erp && docker compose ps
+docker compose ps
 
 # 进入Django容器
 docker compose exec django bash
@@ -238,19 +243,19 @@ docker compose up -d --build
 
 ## 9. 文件修改指南
 修改代码后的标准流程：
-cd /home/erp
-# 1. 修改代码文件
-nano django/app/crm/views.py
+```bash
+# 1. 修改代码文件（使用你喜欢的编辑器）
+#    例如：django/app/crm/views.py
 
 # 2. 如果修改了models.py，需要执行迁移
-docker compose exec django python manage.py makemigrations
-docker compose exec django python manage.py migrate
+docker compose exec web python manage.py makemigrations
+docker compose exec web python manage.py migrate
 
 # 3. 如果修改了requirements.txt，需要重建镜像
 docker compose up -d --build
 
 # 4. 一般代码修改后重启即可
-docker compose restart django
+docker compose restart web
 
 
 ---
